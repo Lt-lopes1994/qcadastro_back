@@ -6,11 +6,11 @@ import {
 } from 'typeorm';
 
 @Entity()
-export class User {
+export class RegisteredUser {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ unique: true })
   cpf: string;
 
   @Column()
@@ -25,7 +25,7 @@ export class User {
   @Column()
   cpfVerificationUrl: string;
 
-  @Column()
+  @Column({ unique: true })
   email: string;
 
   @Column()
@@ -34,7 +34,7 @@ export class User {
   @Column()
   emailVerified: boolean;
 
-  @Column()
+  @Column({ unique: true })
   phoneNumber: string;
 
   @Column()
@@ -45,6 +45,15 @@ export class User {
 
   @Column()
   password: string;
+
+  @Column()
+  passwordResetToken: string;
+
+  @Column()
+  role: string;
+
+  @Column()
+  isActive: boolean;
 
   @CreateDateColumn()
   lgpdAcceptedAt: Date;

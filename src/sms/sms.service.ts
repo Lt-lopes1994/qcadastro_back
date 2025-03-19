@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 import { Injectable } from '@nestjs/common';
 import * as twilio from 'twilio';
 
@@ -16,10 +17,11 @@ export class SmsService {
     const twilioPhone = process.env.TWILIO_PHONE_NUMBER || '+15555555555';
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       await this.client.messages.create({
         body: `Seu código de verificação QCadastro é: ${code}`,
         from: twilioPhone,
-        to: phoneNumber,
+        to: `+55${phoneNumber}`,
       });
     } catch (error) {
       console.error('Erro ao enviar SMS:', error);

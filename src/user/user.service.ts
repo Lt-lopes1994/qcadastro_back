@@ -5,31 +5,47 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from './entity/user.entity';
+import { RegisteredUser } from './entity/user.entity';
 import { EmailService } from '../email/email.service';
 import { SmsService } from '../sms/sms.service';
+import { SecurityService } from '../security/security.service';
+import { BruteForceProtectionService } from '../security/brute-force-protection.service';
 
 @Injectable()
 export class UserService {
   constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
+    @InjectRepository(RegisteredUser)
+    private userRepository: Repository<RegisteredUser>,
     private emailService: EmailService,
     private smsService: SmsService,
+    private securityService: SecurityService,
+    private bruteForceService: BruteForceProtectionService,
   ) {}
 
-  async createUser(userData: Partial<User>): Promise<User> {
+  async createUser(userData: Partial<RegisteredUser>): Promise<RegisteredUser> {
+    // Extrair a senha do objeto userData
+    const { password, ...otherUserData } = userData;
+
+    // Gerar hash da senha se ela foi fornecida
+    const hashedPassword = password
+      ? await this.securityService.hashPassword(password)
+      : undefined;
+
     // Gerar códigos de verificação iniciais
     const emailVerificationCode = this.generateVerificationCode();
     const phoneVerificationCode = this.generateVerificationCode();
 
-    // Configurar valores padrão
+    // Configurar valores padrão com a senha hasheada
     const user = this.userRepository.create({
-      ...userData,
+      ...otherUserData,
+      password: hashedPassword, // Senha hasheada
       emailVerificationCode,
       emailVerified: false,
       phoneVerificationCode,
       phoneVerified: false,
+      role: 'user',
+      isActive: true,
+      lgpdAcceptedAt: new Date(),
     });
 
     const savedUser = await this.userRepository.save(user);
@@ -52,12 +68,16 @@ export class UserService {
     return savedUser;
   }
 
-  async findUserByEmail(email: string): Promise<User | null> {
+  async findUserByEmail(email: string): Promise<RegisteredUser | null> {
     return this.userRepository.findOne({ where: { email } });
   }
 
-  async findUserByPhone(phoneNumber: string): Promise<User | null> {
+  async findUserByPhone(phoneNumber: string): Promise<RegisteredUser | null> {
     return this.userRepository.findOne({ where: { phoneNumber } });
+  }
+
+  async findUserByCpf(cpf: string): Promise<RegisteredUser | null> {
+    return this.userRepository.findOne({ where: { cpf } });
   }
 
   async sendEmailVerificationCode(email: string): Promise<void> {
@@ -122,6 +142,41 @@ export class UserService {
     user.phoneVerified = true;
     await this.userRepository.save(user);
     return true;
+  }
+
+  async login(
+    cpf: string,
+    password: string,
+    ipAddress: string,
+  ): Promise<RegisteredUser> {
+    // Verificar se o IP está bloqueado
+    const isBlocked = await this.bruteForceService.isIpBlocked(ipAddress);
+    if (isBlocked) {
+      throw new BadRequestException(
+        'Acesso temporariamente bloqueado devido a múltiplas tentativas falhas',
+      );
+    }
+
+    const user = await this.findUserByCpf(cpf);
+    if (!user) {
+      await this.bruteForceService.recordLoginAttempt(ipAddress, cpf, false);
+      throw new NotFoundException('Usuário não encontrado com este CPF');
+    }
+
+    // Verificar a senha
+    const isPasswordValid = await this.securityService.verifyPassword(
+      user.password,
+      password,
+    );
+    if (!isPasswordValid) {
+      await this.bruteForceService.recordLoginAttempt(ipAddress, cpf, false);
+      throw new BadRequestException('Senha incorreta');
+    }
+
+    // Registrar login bem-sucedido
+    await this.bruteForceService.recordLoginAttempt(ipAddress, cpf, true);
+
+    return user;
   }
 
   private generateVerificationCode(): string {

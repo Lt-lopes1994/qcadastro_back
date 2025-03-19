@@ -24,16 +24,26 @@ async function bootstrap() {
   // Proteção de cabeçalhos HTTP
   app.use(helmet());
 
-  // Configuração CORS
+  // Configuração CORS - Corrigido para processar múltiplas origens
+  const corsOrigins = configService
+    .get<string>('CORS_ORIGINS', '*')
+    .split(',')
+    .map((origin) => origin.trim());
+
   app.use(
     cors({
-      origin: configService.get('CORS_ORIGINS', '*'),
+      origin: corsOrigins,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
       credentials: true,
     }),
   );
 
-  const port = configService.get<number>('PORT', 3000);
+  const portNumber = process.env.PORT || 3000;
+
+  const port = configService.get<number>(
+    'PORT',
+    portNumber as unknown as number,
+  );
   await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
   console.log(`Environment: ${configService.get('NODE_ENV', 'development')}`);

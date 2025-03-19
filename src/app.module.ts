@@ -9,7 +9,10 @@ import { AppConfigModule } from './config/config.module';
 import { EmailModule } from './email/email.module';
 import { SmsModule } from './sms/sms.module';
 import { SecurityModule } from './security/security.module';
-import { User } from './user/entity/user.entity';
+import { RegisteredUser } from './user/entity/user.entity';
+import { BlockedIp } from './security/entities/blocked-ip.entity';
+import { LoginAttempt } from './security/entities/login-attempt.entity';
+import { PortadorModule } from './portador/portador.module';
 
 @Module({
   imports: [
@@ -28,7 +31,7 @@ import { User } from './user/entity/user.entity';
       username: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [User],
+      entities: [RegisteredUser, BlockedIp, LoginAttempt],
       logging: true,
       synchronize: false,
     }),
@@ -36,6 +39,7 @@ import { User } from './user/entity/user.entity';
     EmailModule,
     SmsModule,
     SecurityModule,
+    PortadorModule,
   ],
   controllers: [AppController],
   providers: [
