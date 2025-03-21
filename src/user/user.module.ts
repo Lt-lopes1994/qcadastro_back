@@ -5,16 +5,17 @@ import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { EmailModule } from '../email/email.module';
 import { SmsModule } from '../sms/sms.module';
-import { SecurityModule } from '../security/security.module'; // Importe o SecurityModule
+import { SecurityModule } from '../security/security.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([RegisteredUser]),
     EmailModule,
     SmsModule,
-    SecurityModule, // Adicione o SecurityModule aqui
+    SecurityModule,
   ],
   providers: [UserService],
   controllers: [UserController],
+  exports: [UserService],
 })
 export class UserModule {}

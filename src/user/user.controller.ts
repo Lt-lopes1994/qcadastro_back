@@ -14,11 +14,13 @@ import { IpBlockGuard } from '../security/guards/ip-block.guard';
 import { Throttle } from '@nestjs/throttler';
 import { LoginDto } from './dto/login.dto';
 import { Request } from 'express';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  @Public()
   @Post('register')
   async register(
     @Body() userData: Partial<RegisteredUser>,
@@ -26,7 +28,7 @@ export class UserController {
     return this.userService.createUser(userData);
   }
 
-  // Aplicando limites de taxa mais restritivos para endpoints críticos
+  @Public()
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   @UseGuards(IpBlockGuard)
   @Post('send-verification-code')
@@ -44,6 +46,7 @@ export class UserController {
     }
   }
 
+  @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @UseGuards(IpBlockGuard)
   @Post('verify-email')
@@ -61,6 +64,7 @@ export class UserController {
     };
   }
 
+  @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @UseGuards(IpBlockGuard)
   @Post('verify-phone')
@@ -81,46 +85,6 @@ export class UserController {
       success,
       message: 'Telefone verificado com sucesso',
     };
-  }
-
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @UseGuards(IpBlockGuard)
-  @Post('login')
-  async login(
-    @Body() loginDto: LoginDto,
-    @Req() request: Request,
-  ): Promise<{ user: Partial<RegisteredUser>; token: string }> {
-    const ipAddress =
-      request.ip || request.connection.remoteAddress || '0.0.0.0';
-
-    try {
-      const user = await this.userService.login(
-        loginDto.cpf,
-        loginDto.password,
-        ipAddress,
-      );
-
-      // Omitir informações sensíveis do usuário
-      const {
-        password,
-        emailVerificationCode,
-        phoneVerificationCode,
-        ...safeUserData
-      } = user;
-
-      // Aqui poderiamos gerar um token JWT para autenticação
-      // estou apenas retornando um token fictício
-      const token = 'jwt-token-would-be-generated-here';
-      return {
-        user: safeUserData,
-        token,
-      };
-    } catch (error) {
-      throw new BadRequestException(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        'Login failed: ' + (error.message || 'Unknown error'),
-      );
-    }
   }
 
   // Outros endpoints para verificar CPF, etc.

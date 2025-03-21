@@ -13,6 +13,9 @@ import { RegisteredUser } from './user/entity/user.entity';
 import { BlockedIp } from './security/entities/blocked-ip.entity';
 import { LoginAttempt } from './security/entities/login-attempt.entity';
 import { PortadorModule } from './portador/portador.module';
+import { Portador } from './portador/entities/portador.entity';
+import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './security/guards/jwt-auth.guard';
 
 @Module({
   imports: [
@@ -31,7 +34,7 @@ import { PortadorModule } from './portador/portador.module';
       username: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [RegisteredUser, BlockedIp, LoginAttempt],
+      entities: [RegisteredUser, BlockedIp, LoginAttempt, Portador],
       logging: true,
       synchronize: false,
     }),
@@ -40,6 +43,7 @@ import { PortadorModule } from './portador/portador.module';
     SmsModule,
     SecurityModule,
     PortadorModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [
@@ -48,6 +52,11 @@ import { PortadorModule } from './portador/portador.module';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    // Registrar o JwtAuthGuard como um guard global
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
     },
   ],
 })
