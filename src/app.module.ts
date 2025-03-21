@@ -10,12 +10,14 @@ import { EmailModule } from './email/email.module';
 import { SmsModule } from './sms/sms.module';
 import { SecurityModule } from './security/security.module';
 import { RegisteredUser } from './user/entity/user.entity';
+import { ProcessoJudicial } from './user/entity/processo-judicial.entity';
 import { BlockedIp } from './security/entities/blocked-ip.entity';
 import { LoginAttempt } from './security/entities/login-attempt.entity';
 import { PortadorModule } from './portador/portador.module';
 import { Portador } from './portador/entities/portador.entity';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './security/guards/jwt-auth.guard';
+import { Endereco } from './portador/entities/endereco.entity';
 
 @Module({
   imports: [
@@ -34,7 +36,14 @@ import { JwtAuthGuard } from './security/guards/jwt-auth.guard';
       username: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [RegisteredUser, BlockedIp, LoginAttempt, Portador],
+      entities: [
+        RegisteredUser,
+        BlockedIp,
+        LoginAttempt,
+        Portador,
+        ProcessoJudicial,
+        Endereco,
+      ],
       logging: true,
       synchronize: false,
     }),

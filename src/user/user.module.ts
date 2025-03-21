@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RegisteredUser } from './entity/user.entity';
+import { ProcessoJudicial } from './entity/processo-judicial.entity';
 import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { EmailModule } from '../email/email.module';
@@ -9,7 +10,7 @@ import { SecurityModule } from '../security/security.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([RegisteredUser]),
+    TypeOrmModule.forFeature([RegisteredUser, ProcessoJudicial]),
     EmailModule,
     SmsModule,
     SecurityModule,

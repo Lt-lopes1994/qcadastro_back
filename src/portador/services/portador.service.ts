@@ -8,12 +8,15 @@ import { Repository } from 'typeorm';
 import { Portador } from '../entities/portador.entity';
 import { CreatePortadorDto } from '../dto/create-portador.dto';
 import { FileStorageService } from './file-storage.service';
+import { RegisteredUser } from '../../user/entity/user.entity';
 
 @Injectable()
 export class PortadorService {
   constructor(
     @InjectRepository(Portador)
     private portadorRepository: Repository<Portador>,
+    @InjectRepository(RegisteredUser)
+    private userRepository: Repository<RegisteredUser>,
     private fileStorageService: FileStorageService,
   ) {}
 
@@ -48,7 +51,20 @@ export class PortadorService {
       status: 'PENDENTE',
     });
 
-    return this.portadorRepository.save(portador);
+    // Salvar o portador
+    const savedPortador = await this.portadorRepository.save(portador);
+
+    // Atualizar o papel do usuário para "portador" (se já não for admin)
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (user) {
+      // Não alterar se o usuário for admin
+      if (user.role !== 'admin') {
+        user.role = 'portador';
+        await this.userRepository.save(user);
+      }
+    }
+
+    return savedPortador;
   }
 
   async findAll(): Promise<Portador[]> {

@@ -46,7 +46,7 @@ export class RegisteredUser {
   @Column()
   password: string;
 
-  @Column()
+  @Column({ nullable: true })
   passwordResetToken: string;
 
   @Column()

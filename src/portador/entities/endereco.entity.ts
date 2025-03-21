@@ -10,36 +10,39 @@ import {
 import { RegisteredUser } from '../../user/entity/user.entity';
 
 @Entity()
-export class Portador {
+export class Endereco {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
-  cnhNumero: string;
+  @Column()
+  cep: string;
 
   @Column()
-  cnhCategoria: string;
+  logradouro: string;
 
   @Column()
-  cnhValidade: Date;
+  numero: string;
+
+  @Column({ nullable: true })
+  complemento: string;
 
   @Column()
-  cnhImagemPath: string;
+  bairro: string;
 
-  @Column({ nullable: true })
-  anttImagemPath: string;
+  @Column()
+  cidade: string;
 
-  @Column({ nullable: true, unique: true })
-  anttNumero: string;
+  @Column()
+  estado: string;
 
-  @Column({ nullable: true })
-  anttValidade: Date;
+  @Column()
+  enderecoCompleto: string;
 
-  @Column({ default: 'PENDENTE' })
-  status: string; // PENDENTE, APROVADO, REJEITADO
+  @Column({ type: 'decimal', precision: 10, scale: 6, nullable: true })
+  latitude: number;
 
-  @Column({ nullable: true })
-  motivoRejeicao: string;
+  @Column({ type: 'decimal', precision: 10, scale: 6, nullable: true })
+  longitude: number;
 
   @ManyToOne(() => RegisteredUser)
   @JoinColumn({ name: 'userId' })

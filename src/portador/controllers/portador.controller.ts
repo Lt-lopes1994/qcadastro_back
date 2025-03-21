@@ -86,6 +86,22 @@ export class PortadorController {
     return this.portadorService.findOne(id);
   }
 
+  @Get('portador/:userId')
+  findOneByUser(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Req() request: UserRequest,
+  ) {
+    // Verificar se o usuário está tentando acessar seus próprios dados
+    // ou se tem permissão admin
+    if (request.user.role !== 'admin' && request.user.id !== userId) {
+      throw new ForbiddenException(
+        'Você não tem permissão para acessar estes dados',
+      );
+    }
+
+    return this.portadorService.findByUser(userId);
+  }
+
   @Patch(':id')
   @UseInterceptors(
     FileFieldsInterceptor([

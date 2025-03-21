@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   Controller,
@@ -6,6 +8,7 @@ import {
   BadRequestException,
   UseGuards,
   Req,
+  Param,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { RegisteredUser } from './entity/user.entity';
@@ -15,6 +18,8 @@ import { Throttle } from '@nestjs/throttler';
 import { LoginDto } from './dto/login.dto';
 import { Request } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
+import { NetrinResponseDto } from './dto/processos-judiciais.dto';
+import { UserRequest } from './interfaces/user-request.interface';
 
 @Controller('users')
 export class UserController {
@@ -85,6 +90,23 @@ export class UserController {
       success,
       message: 'Telefone verificado com sucesso',
     };
+  }
+
+  @Post(':id/save-processos-judiciais')
+  async saveProcessosJudiciais(
+    @Param('id') userId: number,
+    @Body() netrinData: NetrinResponseDto,
+    @Req() req: UserRequest,
+  ) {
+    // Verificar se o usuário está tentando modificar seus próprios dados
+    // ou se tem permissão de admin
+    if (req.user.role !== 'admin' && req.user.id !== +userId) {
+      throw new BadRequestException(
+        'Você não tem permissão para realizar esta ação',
+      );
+    }
+
+    return this.userService.saveProcessosJudiciais(+userId, netrinData);
   }
 
   // Outros endpoints para verificar CPF, etc.

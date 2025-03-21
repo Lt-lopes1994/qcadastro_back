@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   Injectable,
   NotFoundException,
@@ -6,16 +9,20 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RegisteredUser } from './entity/user.entity';
+import { ProcessoJudicial } from './entity/processo-judicial.entity';
 import { EmailService } from '../email/email.service';
 import { SmsService } from '../sms/sms.service';
 import { SecurityService } from '../security/security.service';
 import { BruteForceProtectionService } from '../security/brute-force-protection.service';
+import { NetrinResponseDto } from './dto/processos-judiciais.dto';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(RegisteredUser)
     private userRepository: Repository<RegisteredUser>,
+    @InjectRepository(ProcessoJudicial)
+    private processoRepository: Repository<ProcessoJudicial>,
     private emailService: EmailService,
     private smsService: SmsService,
     private securityService: SecurityService,
@@ -177,6 +184,78 @@ export class UserService {
     await this.bruteForceService.recordLoginAttempt(ipAddress, cpf, true);
 
     return user;
+  }
+
+  async saveProcessosJudiciais(
+    userId: number,
+    netrinData: NetrinResponseDto,
+  ): Promise<any> {
+    // Verificar se o usuário existe
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`Usuário com ID ${userId} não encontrado`);
+    }
+
+    // Verificar se o CPF corresponde ao usuário
+    if (user.cpf !== netrinData.cpf) {
+      throw new BadRequestException(
+        'O CPF informado não corresponde ao usuário',
+      );
+    }
+
+    // Atualizar o status do CPF no usuário
+    user.cpfStatus = 'VERIFICADO';
+    await this.userRepository.save(user);
+
+    // Salvar cada processo judicial
+    // Interface for the processo judicial data from Netrin
+    interface ProcessoJudicialNetrinData {
+      numero: string;
+      dataNotificacao?: string;
+      tipo: string;
+      assuntoPrincipal: string;
+      status: string;
+      varaJulgadora: string;
+      tribunal: string;
+      tribunalLevel: string;
+      tribunalTipo: string;
+      tribunalCidade: string;
+      estado: string;
+      partes: any; // Using any since we don't know the exact structure
+    }
+
+    const processosPromises: Promise<ProcessoJudicial>[] =
+      netrinData.processosCPF.processos.map(
+        async (
+          processo: ProcessoJudicialNetrinData,
+        ): Promise<ProcessoJudicial> => {
+          const novoProcesso = new ProcessoJudicial();
+          novoProcesso.numero = processo.numero;
+          novoProcesso.dataNotificacao = processo.dataNotificacao
+            ? new Date(processo.dataNotificacao)
+            : (null as unknown as Date);
+          novoProcesso.tipo = processo.tipo;
+          novoProcesso.assuntoPrincipal = processo.assuntoPrincipal;
+          novoProcesso.status = processo.status;
+          novoProcesso.varaJulgadora = processo.varaJulgadora;
+          novoProcesso.tribunal = processo.tribunal;
+          novoProcesso.tribunalLevel = processo.tribunalLevel;
+          novoProcesso.tribunalTipo = processo.tribunalTipo;
+          novoProcesso.tribunalCidade = processo.tribunalCidade;
+          novoProcesso.estado = processo.estado;
+          novoProcesso.partes = processo.partes;
+          novoProcesso.userId = userId;
+
+          return this.processoRepository.save(novoProcesso);
+        },
+      );
+
+    await Promise.all(processosPromises);
+
+    return {
+      message: 'Dados de processos judiciais salvos com sucesso',
+      totalProcessos: netrinData.processosCPF.totalProcessos,
+    };
   }
 
   private generateVerificationCode(): string {
