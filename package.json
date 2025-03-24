@@ -23,7 +23,10 @@
     "migration:run": "npm run typeorm -- migration:run -d src/database/datasource.ts",
     "migration:revert": "npm run typeorm -- migration:revert",
     "db:reset:script": "ts-node -r tsconfig-paths/register src/scripts/reset-database.ts",
-    "create:admin": "ts-node -r tsconfig-paths/register src/scripts/create-admin.ts"
+    "create:admin": "ts-node -r tsconfig-paths/register src/scripts/create-admin.ts",
+    "schema:export": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js schema:log -d src/database/datasource.ts -o schema.sql",
+    "export:schema": "ts-node -r tsconfig-paths/register src/scripts/export-schema.ts",
+    "create:dump": "ts-node -r tsconfig-paths/register src/scripts/create-dump.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -43,6 +46,7 @@
     "nodemailer": "^6.10.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pdf-lib": "^1.17.1",
     "pg": "^8.14.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",

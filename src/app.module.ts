@@ -18,6 +18,8 @@ import { Portador } from './portador/entities/portador.entity';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './security/guards/jwt-auth.guard';
 import { Endereco } from './portador/entities/endereco.entity';
+import { ClickSignModule } from './click-sign/click-sign.module';
+import { DocumentEntity } from './click-sign/entities/document.entity';
 
 @Module({
   imports: [
@@ -43,6 +45,7 @@ import { Endereco } from './portador/entities/endereco.entity';
         Portador,
         ProcessoJudicial,
         Endereco,
+        DocumentEntity,
       ],
       logging: true,
       synchronize: false,
@@ -53,6 +56,7 @@ import { Endereco } from './portador/entities/endereco.entity';
     SecurityModule,
     PortadorModule,
     AuthModule,
+    ClickSignModule,
   ],
   controllers: [AppController],
   providers: [

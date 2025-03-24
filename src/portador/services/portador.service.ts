@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -161,5 +162,26 @@ export class PortadorService {
     portador.status = 'REJEITADO';
     portador.motivoRejeicao = motivo;
     return this.portadorRepository.save(portador);
+  }
+
+  /**
+   * Gera um documento de termo de responsabilidade para o portador assinar
+   */
+  async gerarTermoResponsabilidade(portadorId: number, userId: number) {
+    // Verificar se o portador existe e pertence ao usuário
+    const portador = await this.findOne(portadorId);
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const isAdmin = user && user.role === 'admin';
+
+    if (portador.userId !== userId && !isAdmin) {
+      throw new ForbiddenException('Você não tem permissão para esta operação');
+    }
+
+    // Delegar para o serviço do ClickSign
+    // Esta parte seria implementada quando tivermos o ClickSignService injetado
+    return {
+      message:
+        'Use o endpoint /documentos/portador/:portadorId/assinar para gerar o termo de responsabilidade',
+    };
   }
 }

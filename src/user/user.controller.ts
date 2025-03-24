@@ -2,24 +2,22 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import {
-  Controller,
-  Post,
-  Body,
   BadRequestException,
-  UseGuards,
-  Req,
+  Body,
+  Controller,
   Param,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { UserService } from './user.service';
-import { RegisteredUser } from './entity/user.entity';
-import { SendVerificationCodeDto, VerifyCodeDto } from './dto/validation.dto';
-import { IpBlockGuard } from '../security/guards/ip-block.guard';
 import { Throttle } from '@nestjs/throttler';
-import { LoginDto } from './dto/login.dto';
-import { Request } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
+import { IpBlockGuard } from '../security/guards/ip-block.guard';
 import { NetrinResponseDto } from './dto/processos-judiciais.dto';
+import { SendVerificationCodeDto, VerifyCodeDto } from './dto/validation.dto';
+import { RegisteredUser } from './entity/user.entity';
 import { UserRequest } from './interfaces/user-request.interface';
+import { UserService } from './user.service';
 
 @Controller('users')
 export class UserController {
