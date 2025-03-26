@@ -107,5 +107,14 @@ export class UserController {
     return this.userService.saveProcessosJudiciais(+userId, netrinData);
   }
 
+  @Public()
+  @Post('test-fetch-processos')
+  async testFetchProcessos(
+    @Body('userId') userId: number,
+    @Body('cpf') cpf: string,
+  ) {
+    return this.userService.fetchProcessosJudiciais(userId, cpf);
+  }
+
   // Outros endpoints para verificar CPF, etc.
 }

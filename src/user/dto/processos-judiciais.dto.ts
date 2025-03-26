@@ -4,89 +4,254 @@ import {
   IsNumber,
   IsOptional,
   IsArray,
+  IsBoolean,
+  IsDateString,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class AdvogadoDto {
+  @IsString()
+  @IsOptional()
+  nome?: string;
+
+  @IsString()
+  @IsOptional()
+  oab?: string;
+}
+
+class AssuntoCnjDto {
+  @IsString()
+  titulo: string;
+
+  @IsString()
+  @IsOptional()
+  codigoCNJ?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  ePrincipal?: boolean;
+}
+
+class ClasseProcessualDto {
+  @IsString()
+  nome: string;
+}
 
 class ParteProcessoDto {
   @IsString()
-  nome: string;
+  @IsOptional()
+  nome?: string;
 
   @IsString()
-  posicao: string;
+  @IsOptional()
+  cpf?: string;
 
   @IsString()
-  tipo: string;
+  @IsOptional()
+  cnpj?: string;
+
+  @IsString()
+  @IsOptional()
+  polo?: string;
+
+  @IsString()
+  @IsOptional()
+  tipo?: string;
+
+  @IsArray()
+  @IsOptional()
+  advogados?: AdvogadoDto[];
+}
+
+class ValorCausaDto {
+  @IsString()
+  @IsOptional()
+  moeda?: string;
+
+  @IsNumber()
+  @IsOptional()
+  valor?: number;
+}
+
+class StatusProcessoDto {
+  @IsString()
+  @IsOptional()
+  statusProcesso?: string;
+
+  @IsArray()
+  @IsOptional()
+  julgamentos?: any[];
+
+  @IsString()
+  @IsOptional()
+  ramoDireito?: string;
+
+  @IsArray()
+  @IsOptional()
+  penhoras?: any[];
+
+  @IsString()
+  @IsOptional()
+  justicaGratuita?: string;
+}
+
+class MovimentoDto {
+  @IsDateString()
+  @IsOptional()
+  data?: string;
+
+  @IsNumber()
+  @IsOptional()
+  indice?: number;
+
+  @IsObject()
+  @IsOptional()
+  classificacaoCNJ?: any;
+
+  @IsBoolean()
+  @IsOptional()
+  eMovimento?: boolean;
+
+  @IsArray()
+  @IsOptional()
+  nomeOriginal?: string[];
 }
 
 class ProcessoDto {
   @IsString()
-  numero: string;
+  @IsOptional()
+  numero?: string;
 
   @IsString()
   @IsOptional()
-  dataNotificacao: string;
+  numeroProcessoUnico?: string;
 
   @IsString()
   @IsOptional()
-  tipo: string;
+  numeroProcessoAntigo?: string;
 
   @IsString()
   @IsOptional()
-  assuntoPrincipal: string;
+  urlProcesso?: string;
+
+  @IsNumber()
+  @IsOptional()
+  grauProcesso?: number;
 
   @IsString()
   @IsOptional()
-  status: string;
+  sistema?: string;
 
   @IsString()
   @IsOptional()
-  varaJulgadora: string;
+  segmento?: string;
 
   @IsString()
   @IsOptional()
-  tribunal: string;
+  tribunal?: string;
 
   @IsString()
   @IsOptional()
-  tribunalLevel: string;
+  uf?: string;
 
   @IsString()
   @IsOptional()
-  tribunalTipo: string;
+  orgaoJulgador?: string;
 
   @IsString()
   @IsOptional()
-  tribunalCidade: string;
+  unidadeOrigem?: string;
 
-  @IsString()
+  @IsObject()
   @IsOptional()
-  estado: string;
+  classeProcessual?: ClasseProcessualDto;
 
   @IsArray()
   @IsOptional()
-  partes: ParteProcessoDto[];
+  @ValidateNested({ each: true })
+  @Type(() => AssuntoCnjDto)
+  assuntosCNJ?: AssuntoCnjDto[];
+
+  @IsDateString()
+  @IsOptional()
+  dataDistribuicao?: string;
+
+  @IsArray()
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => ParteProcessoDto)
+  partes?: ParteProcessoDto[];
+
+  @IsArray()
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => MovimentoDto)
+  movimentos?: MovimentoDto[];
+
+  @IsObject()
+  @IsOptional()
+  valorCausa?: ValorCausaDto;
+
+  @IsBoolean()
+  @IsOptional()
+  ePrioritario?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  eSegredoJustica?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  eProcessoDigital?: boolean;
+
+  @IsString()
+  @IsOptional()
+  juiz?: string;
+
+  @IsObject()
+  @IsOptional()
+  status?: StatusProcessoDto;
+
+  @IsDateString()
+  @IsOptional()
+  dataAutuacao?: string;
+
+  @IsDateString()
+  @IsOptional()
+  dataProcessamento?: string;
 }
 
 class ProcessosCpfDto {
   @IsNumber()
-  totalProcessos: number;
+  @IsOptional()
+  totalProcessos?: number;
 
   @IsNumber()
-  totalProcessosAutor: number;
+  @IsOptional()
+  totalProcessosAutor?: number;
 
   @IsNumber()
-  totalProcessosReu: number;
+  @IsOptional()
+  totalProcessosReu?: number;
 
   @IsNumber()
-  processosUltimos180dias: number;
+  @IsOptional()
+  processosUltimos180dias?: number;
 
   @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProcessoDto)
   processos: ProcessoDto[];
 }
 
 export class NetrinResponseDto {
   @IsString()
-  cpf: string;
+  @IsOptional()
+  cpf?: string;
 
   @IsObject()
+  @ValidateNested()
+  @Type(() => ProcessosCpfDto)
   processosCPF: ProcessosCpfDto;
 }

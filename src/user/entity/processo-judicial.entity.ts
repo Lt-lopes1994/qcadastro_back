@@ -16,6 +16,21 @@ export class ProcessoJudicial {
   numero: string;
 
   @Column({ nullable: true })
+  numeroProcessoUnico: string;
+
+  @Column({ nullable: true })
+  urlProcesso: string;
+
+  @Column({ type: 'int', nullable: true })
+  grauProcesso: number;
+
+  @Column({ nullable: true })
+  unidadeOrigem: string;
+
+  @Column({ type: 'json', nullable: true })
+  assuntosCNJ: any;
+
+  @Column({ nullable: true })
   dataNotificacao: Date;
 
   @Column({ nullable: true })

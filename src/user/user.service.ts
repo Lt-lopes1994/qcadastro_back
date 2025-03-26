@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   Injectable,
   NotFoundException,
@@ -15,6 +12,7 @@ import { SmsService } from '../sms/sms.service';
 import { SecurityService } from '../security/security.service';
 import { BruteForceProtectionService } from '../security/brute-force-protection.service';
 import { NetrinResponseDto } from './dto/processos-judiciais.dto';
+import axios from 'axios';
 
 @Injectable()
 export class UserService {
@@ -59,10 +57,14 @@ export class UserService {
 
     // Opcionalmente enviar os códigos no momento do registro
     if (userData.email) {
-      await this.emailService.sendVerificationEmail(
-        userData.email,
-        emailVerificationCode,
-      );
+      try {
+        await this.emailService.sendVerificationEmail(
+          userData.email,
+          emailVerificationCode,
+        );
+      } catch (error) {
+        console.log('Erro ao enviar email de verificação:', error);
+      }
     }
 
     if (userData.phoneNumber) {
@@ -70,6 +72,18 @@ export class UserService {
         userData.phoneNumber,
         phoneVerificationCode,
       );
+    }
+
+    // Buscar e salvar processos judiciais se o CPF for fornecido
+    if (userData.cpf) {
+      try {
+        console.log('Buscando processos judiciais para o CPF:', userData.cpf);
+
+        await this.fetchProcessosJudiciais(savedUser.id, userData.cpf);
+      } catch (error) {
+        console.error('Erro ao buscar processos judiciais:', error);
+        // Não interrompemos o fluxo em caso de erro na API externa
+      }
     }
 
     return savedUser;
@@ -189,78 +203,114 @@ export class UserService {
   async saveProcessosJudiciais(
     userId: number,
     netrinData: NetrinResponseDto,
-  ): Promise<any> {
+  ): Promise<ProcessoJudicial[]> {
     // Verificar se o usuário existe
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException(`Usuário com ID ${userId} não encontrado`);
     }
 
-    // Verificar se o CPF corresponde ao usuário
-    if (user.cpf !== netrinData.cpf) {
-      throw new BadRequestException(
-        'O CPF informado não corresponde ao usuário',
-      );
+    const savedProcessos: ProcessoJudicial[] = [];
+
+    // Acessar os processos no objeto recebido
+    const processos = netrinData.processosCPF?.processos || [];
+
+    if (processos.length > 0) {
+      // Para cada processo na resposta do Netrin
+      for (const processoData of processos) {
+        // Criar um novo objeto ProcessoJudicial
+        const processo = new ProcessoJudicial();
+
+        // Mapear os campos que queremos salvar
+        processo.userId = userId;
+        processo.numero =
+          processoData.numeroProcessoUnico ||
+          processoData.numero ||
+          'Sem número';
+        processo.numeroProcessoUnico = processoData.numeroProcessoUnico || '';
+        processo.urlProcesso = processoData.urlProcesso || '';
+        processo.grauProcesso = processoData.grauProcesso || 0;
+        processo.unidadeOrigem = processoData.unidadeOrigem || '';
+        processo.assuntosCNJ = processoData.assuntosCNJ || null;
+
+        // Dados adicionais relevantes
+        processo.tribunal = processoData.tribunal || '';
+        processo.estado = processoData.uf || '';
+
+        // Extrair o tipo do processo (classe processual)
+        processo.tipo = processoData.classeProcessual?.nome || '';
+
+        // Definir status do processo
+        if (processoData.status && typeof processoData.status === 'object') {
+          processo.status = processoData.status.statusProcesso || '';
+        } else {
+          processo.status = 'EM TRAMITACAO'; // Status padrão
+        }
+
+        // Identificar assunto principal dos assuntosCNJ
+        if (processoData.assuntosCNJ && processoData.assuntosCNJ.length > 0) {
+          const assuntoPrincipal = processoData.assuntosCNJ.find(
+            (a) => a.ePrincipal,
+          );
+          if (assuntoPrincipal) {
+            processo.assuntoPrincipal = assuntoPrincipal.titulo;
+          }
+        }
+
+        // Salvar partes do processo
+        processo.partes = processoData.partes || null;
+
+        // Salvar o processo no banco de dados
+        const savedProcesso = await this.processoRepository.save(processo);
+        savedProcessos.push(savedProcesso);
+      }
     }
 
-    // Atualizar o status do CPF no usuário
-    user.cpfStatus = 'VERIFICADO';
-    await this.userRepository.save(user);
-
-    // Salvar cada processo judicial
-    // Interface for the processo judicial data from Netrin
-    interface ProcessoJudicialNetrinData {
-      numero: string;
-      dataNotificacao?: string;
-      tipo: string;
-      assuntoPrincipal: string;
-      status: string;
-      varaJulgadora: string;
-      tribunal: string;
-      tribunalLevel: string;
-      tribunalTipo: string;
-      tribunalCidade: string;
-      estado: string;
-      partes: any; // Using any since we don't know the exact structure
-    }
-
-    const processosPromises: Promise<ProcessoJudicial>[] =
-      netrinData.processosCPF.processos.map(
-        async (
-          processo: ProcessoJudicialNetrinData,
-        ): Promise<ProcessoJudicial> => {
-          const novoProcesso = new ProcessoJudicial();
-          novoProcesso.numero = processo.numero;
-          novoProcesso.dataNotificacao = processo.dataNotificacao
-            ? new Date(processo.dataNotificacao)
-            : (null as unknown as Date);
-          novoProcesso.tipo = processo.tipo;
-          novoProcesso.assuntoPrincipal = processo.assuntoPrincipal;
-          novoProcesso.status = processo.status;
-          novoProcesso.varaJulgadora = processo.varaJulgadora;
-          novoProcesso.tribunal = processo.tribunal;
-          novoProcesso.tribunalLevel = processo.tribunalLevel;
-          novoProcesso.tribunalTipo = processo.tribunalTipo;
-          novoProcesso.tribunalCidade = processo.tribunalCidade;
-          novoProcesso.estado = processo.estado;
-          novoProcesso.partes = processo.partes;
-          novoProcesso.userId = userId;
-
-          return this.processoRepository.save(novoProcesso);
-        },
-      );
-
-    await Promise.all(processosPromises);
-
-    return {
-      message: 'Dados de processos judiciais salvos com sucesso',
-      totalProcessos: netrinData.processosCPF.totalProcessos,
-    };
+    return savedProcessos;
   }
 
   private generateVerificationCode(): string {
     // Gera um código numérico de 6 dígitos
     return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  // Adicione este método em UserService
+  async fetchProcessosJudiciais(
+    userId: number,
+    cpf: string,
+  ): Promise<ProcessoJudicial[]> {
+    try {
+      // Verificar se o usuário existe
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (!user) {
+        throw new NotFoundException(`Usuário com ID ${userId} não encontrado`);
+      }
+
+      // Token da API Netrin (idealmente deveria estar em variáveis de ambiente)
+      const token = process.env.NETRIN_TOKEN;
+      const url = `https://api.netrin.com.br/v1/consulta-composta?token=${token}&s=processos-full&cpf=${cpf}`;
+
+      // Fazer a requisição para a API Netrin
+      try {
+        const response = await axios.get(url);
+        console.log('Resposta da API Netrin:', response.data);
+
+        // Salvar os processos retornados
+        if (response.data) {
+          return this.saveProcessosJudiciais(userId, response.data);
+        }
+
+        return [];
+      } catch (error) {
+        console.error('Erro ao buscar processos judiciais:', error);
+        // Não lançar erro para não interromper o fluxo de criação do usuário
+        return [];
+      }
+    } catch (error) {
+      console.error('Erro ao buscar processos judiciais:', error);
+      // Não lançar erro para não interromper o fluxo de criação do usuário
+      return [];
+    }
   }
 
   // Outros métodos para verificar CPF, etc.
