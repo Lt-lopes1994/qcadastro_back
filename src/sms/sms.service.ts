@@ -1,20 +1,21 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as twilio from 'twilio';
 
 @Injectable()
 export class SmsService {
   private client;
 
-  constructor() {
-    // Configure com suas credenciais Twilio
-    const accountSid = process.env.TWILIO_ACCOUNT_SID || 'seu_account_sid';
-    const authToken = process.env.TWILIO_AUTH_TOKEN || 'seu_auth_token';
+  constructor(private configService: ConfigService) {
+    // Configurar com credenciais Twilio do ambiente apropriado
+    const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
+    const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
     this.client = twilio(accountSid, authToken);
   }
 
   async sendVerificationSms(phoneNumber: string, code: string): Promise<void> {
-    const twilioPhone = process.env.TWILIO_PHONE_NUMBER || '+15555555555';
+    const twilioPhone = this.configService.get<string>('TWILIO_PHONE_NUMBER');
 
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
