@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { UserModule } from './user/user.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -18,6 +19,8 @@ import { Portador } from './portador/entities/portador.entity';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './security/guards/jwt-auth.guard';
 import { Endereco } from './portador/entities/endereco.entity';
+import { Veiculo } from './cadastro-veiculo/entities/veiculo.entity';
+import { CadastroVeiculoModule } from './cadastro-veiculo/cadastro-veiculo.module';
 
 @Module({
   imports: [
@@ -29,23 +32,34 @@ import { Endereco } from './portador/entities/endereco.entity';
         limit: 10, // número máximo de requisições
       },
     ]),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      username: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      entities: [
-        RegisteredUser,
-        BlockedIp,
-        LoginAttempt,
-        Portador,
-        ProcessoJudicial,
-        Endereco,
-      ],
-      logging: true,
-      synchronize: false,
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        type: 'mysql',
+        host: configService.get<string>('DB_HOST'),
+        port: parseInt(configService.get<string>('DB_PORT', '3306')),
+        username: configService.get<string>('DB_USER'),
+        password: configService.get<string>('DB_PASSWORD'),
+        database: configService.get<string>('DB_NAME'),
+        entities: [
+          RegisteredUser,
+          BlockedIp,
+          LoginAttempt,
+          Portador,
+          ProcessoJudicial,
+          Endereco,
+          Veiculo,
+        ],
+        logging: true,
+        synchronize: false,
+        timezone: 'Z',
+        extra: {
+          connectionLimit: 10,
+          charset: 'utf8mb4',
+          supportBigNumbers: true,
+          bigNumberStrings: true,
+        },
+      }),
     }),
     UserModule,
     EmailModule,
@@ -53,6 +67,7 @@ import { Endereco } from './portador/entities/endereco.entity';
     SecurityModule,
     PortadorModule,
     AuthModule,
+    CadastroVeiculoModule,
   ],
   controllers: [AppController],
   providers: [

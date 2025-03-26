@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: qcadastro_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      # Configure para apontar para seu banco existente
+      - DB_HOST=134.65.51.188
+      - DB_PORT=3306
+      - DB_USER=bruno
+      - DB_PASSWORD=Quality#2025
+      - DB_NAME=qeCadastro
+      - JWT_SECRET=seu_jwt_secret_mais_seguro
+      - JWT_EXPIRES_IN=24h
+      # Adicione as demais variáveis de ambiente necessárias
+      - TWILIO_ACCOUNT_SID=AC71ff0c686e247387ea98b6efe6de8dee
+      - TWILIO_AUTH_TOKEN=bab8bec5f0028e48f9ae2daac09d9e12
+      - TWILIO_PHONE_NUMBER=+17792178398
+      - IAGENTE_API_USER=qe@qualityentregas.com.br
+      - IAGENTE_API_KEY=c062a5c36b98f75b4188f969f517f3da
+      - IAGENTE_API_URL=https://api.iagentesmtp.com.br/api/v3/send/
+      - EMAIL_FROM_NAME=QCadastro
+      - EMAIL_FROM_EMAIL=noreply@qualityentregas.com.br
+      - EMAIL_REPLY_TO=relacionamento@qualityentregas.com.br
+    volumes:
+      - ./uploads:/app/uploads
+      - ./temp:/app/temp
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8.0
+    container_name: qcadastro_db
+    restart: always
+    ports:
+      - "3307:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password_segura
+      - MYSQL_DATABASE=qeCadastro
+      - MYSQL_USER=bruno
+      - MYSQL_PASSWORD=Quality#2025
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+volumes:
+  mysql_data:
