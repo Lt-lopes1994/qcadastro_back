@@ -1,17 +1,15 @@
-version: '3.8'
-
 services:
   app:
     build: .
     container_name: qcadastro_app
     restart: always
-    ports:
-      - "3000:3000"
+    expose:
+      - "8000"  # Apenas expõe internamente, não publica
     environment:
       - NODE_ENV=production
       # Configure para apontar para seu banco existente
-      - DB_HOST=134.65.51.188
-      - DB_PORT=3306
+      - DB_HOST=db  # Use o nome do serviço
+      - DB_PORT=3306  # Use a porta interna do container
       - DB_USER=bruno
       - DB_PASSWORD=Quality#2025
       - DB_NAME=qeCadastro
@@ -31,7 +29,8 @@ services:
       - ./uploads:/app/uploads
       - ./temp:/app/temp
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   db:
     image: mysql:8.0
@@ -47,6 +46,26 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "bruno", "-pQuality#2025"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  nginx:
+    image: nginx:alpine
+    container_name: qcadastro_nginx
+    ports:
+      - "80:80"
+      - "443:443"  # para HTTPS
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl  # para certificados SSL
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - app
+    restart: always
 
 volumes:
   mysql_data:
