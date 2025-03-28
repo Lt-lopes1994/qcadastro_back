@@ -25,16 +25,22 @@ async function bootstrap() {
   app.use(helmet());
 
   // Configuração CORS - Corrigido para processar múltiplas origens
-  const corsOrigins = configService
-    .get<string>('CORS_ORIGINS', '*')
-    .split(',')
-    .map((origin) => origin.trim());
+  const corsOrigins = Array.from(
+    new Set(
+      (configService.get<string>('CORS_ORIGINS') || '')
+        .split(',')
+        .map((origin) => origin.trim()),
+    ),
+  );
 
   app.use(
     cors({
-      origin: corsOrigins,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+      origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+      preflightContinue: false,
+      optionsSuccessStatus: 204,
     }),
   );
 
