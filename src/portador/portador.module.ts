@@ -27,6 +27,6 @@ import { GeocodingService } from './services/geocoding.service';
     EnderecoService,
     GeocodingService,
   ],
-  exports: [PortadorService, EnderecoService],
+  exports: [PortadorService, EnderecoService, FileStorageService],
 })
 export class PortadorModule {}

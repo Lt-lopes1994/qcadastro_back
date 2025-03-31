@@ -9,8 +9,11 @@ import {
   Post,
   Req,
   UseGuards,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Public } from '../auth/decorators/public.decorator';
 import { IpBlockGuard } from '../security/guards/ip-block.guard';
 import { NetrinResponseDto } from './dto/processos-judiciais.dto';
@@ -18,6 +21,7 @@ import { SendVerificationCodeDto, VerifyCodeDto } from './dto/validation.dto';
 import { RegisteredUser } from './entity/user.entity';
 import { UserRequest } from './interfaces/user-request.interface';
 import { UserService } from './user.service';
+import { CreateEnderecoDto } from '../portador/dto/create-endereco.dto';
 
 @Controller('users')
 export class UserController {
@@ -114,6 +118,22 @@ export class UserController {
     @Body('cpf') cpf: string,
   ) {
     return this.userService.fetchProcessosJudiciais(userId, cpf);
+  }
+
+  @Post('complete-registration')
+  @UseInterceptors(FileInterceptor('foto'))
+  async completeRegistration(
+    @Body() body: { nome: string; endereco: CreateEnderecoDto },
+    @UploadedFile() foto: Express.Multer.File,
+    @Req() request: UserRequest,
+  ) {
+    if (!body.nome || !body.endereco) {
+      throw new BadRequestException('Nome e endereço são obrigatórios');
+    }
+
+    const userId = request.user.id;
+
+    return this.userService.completeRegistration(userId, body, foto);
   }
 
   // Outros endpoints para verificar CPF, etc.

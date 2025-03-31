@@ -55,6 +55,9 @@ export class RegisteredUser {
   @Column()
   isActive: boolean;
 
+  @Column({ nullable: true })
+  fotoPath: string;
+
   @CreateDateColumn()
   lgpdAcceptedAt: Date;
 }
