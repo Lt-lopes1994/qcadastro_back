@@ -21,6 +21,9 @@ import { JwtAuthGuard } from './security/guards/jwt-auth.guard';
 import { Endereco } from './portador/entities/endereco.entity';
 import { Veiculo } from './cadastro-veiculo/entities/veiculo.entity';
 import { CadastroVeiculoModule } from './cadastro-veiculo/cadastro-veiculo.module';
+import { EmpresaModule } from './empresa/empresa.module';
+import { Empresa } from './empresa/entities/empresa.entity';
+import { DadosBancarios } from './empresa/entities/dados-bancarios.entity';
 
 @Module({
   imports: [
@@ -49,10 +52,12 @@ import { CadastroVeiculoModule } from './cadastro-veiculo/cadastro-veiculo.modul
           ProcessoJudicial,
           Endereco,
           Veiculo,
+          Empresa,
+          DadosBancarios,
         ],
         logging: true,
         synchronize: false,
-        timezone: 'Z',
+        timezone: '+03:00',
         extra: {
           connectionLimit: 10,
           charset: 'utf8mb4',
@@ -68,6 +73,7 @@ import { CadastroVeiculoModule } from './cadastro-veiculo/cadastro-veiculo.modul
     PortadorModule,
     AuthModule,
     CadastroVeiculoModule,
+    EmpresaModule,
   ],
   controllers: [AppController],
   providers: [

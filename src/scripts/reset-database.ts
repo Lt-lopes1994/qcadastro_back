@@ -50,15 +50,6 @@ async function resetDatabase() {
     await dataSource.dropDatabase();
     console.log('✓ Banco de dados dropado com sucesso');
 
-    // Criar o esquema (as tabelas serão criadas automaticamente)
-    await dataSource.synchronize(true);
-    console.log('✓ Esquema do banco de dados recriado com sucesso');
-
-    // Executar migrações
-    const migrations = await dataSource.runMigrations();
-    console.log(`✓ ${migrations.length} migrações executadas com sucesso:`);
-    migrations.forEach((migration) => console.log(`  - ${migration.name}`));
-
     console.log('\n✅ Resetamento do banco de dados concluído com sucesso!');
   } catch (error) {
     console.error('❌ Erro durante a operação:', error);
