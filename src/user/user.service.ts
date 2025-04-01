@@ -308,6 +308,62 @@ export class UserService {
     return { message: 'Cadastro concluído com sucesso' };
   }
 
+  async updateProfile(
+    userId: number,
+    data: { nome?: string; endereco?: CreateEnderecoDto },
+    foto?: Express.Multer.File,
+  ) {
+    console.log('Dados recebidos para atualização:', data, foto);
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+
+    // Atualizar nome se fornecido
+    if (data.nome) {
+      const [firstName, ...lastNameParts] = data.nome.split(' ');
+      user.firstName = firstName;
+      user.lastName = lastNameParts.join(' ');
+    }
+
+    // Atualizar foto se fornecida
+    if (foto) {
+      // Se já existe uma foto, deletar a antiga
+      if (user.fotoPath) {
+        await this.fileStorageService.deleteFile(user.fotoPath);
+      }
+      const fotoPath = await this.fileStorageService.saveFile(
+        foto,
+        'user-photos',
+      );
+      user.fotoPath = fotoPath;
+    }
+
+    // Atualizar endereço se fornecido
+    if (data.endereco) {
+      // Buscar endereço existente
+      const enderecoExistente = await this.enderecoService.findByUser(userId);
+
+      if (enderecoExistente && enderecoExistente.length > 0) {
+        // Atualizar endereço existente
+        await this.enderecoService.update(
+          enderecoExistente[0].id,
+          data.endereco,
+        );
+      } else {
+        // Criar novo endereço se não existe
+        await this.enderecoService.create(data.endereco, userId);
+      }
+    }
+
+    // Salvar alterações do usuário
+    await this.userRepository.save(user);
+
+    return { message: 'Perfil atualizado com sucesso' };
+  }
+
   private generateVerificationCode(): string {
     // Gera um código numérico de 6 dígitos
     return Math.floor(100000 + Math.random() * 900000).toString();

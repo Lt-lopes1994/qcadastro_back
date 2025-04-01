@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unused-vars */
@@ -134,6 +135,24 @@ export class UserController {
     const userId = request.user.id;
 
     return this.userService.completeRegistration(userId, body, foto);
+  }
+
+  @Post('update-profile')
+  @UseInterceptors(FileInterceptor('foto'))
+  async updateProfile(
+    @Body() body: { nome?: string; endereco?: string },
+    @UploadedFile() foto: Express.Multer.File,
+    @Req() request: UserRequest,
+  ) {
+    const userId = request.user.id;
+
+    // Parse do endereço se existir
+    const data = {
+      nome: body.nome,
+      endereco: body.endereco ? JSON.parse(body.endereco) : undefined,
+    };
+
+    return this.userService.updateProfile(userId, data, foto);
   }
 
   // Outros endpoints para verificar CPF, etc.
