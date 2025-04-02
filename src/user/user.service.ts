@@ -13,6 +13,9 @@ import { SecurityService } from '../security/security.service';
 import { BruteForceProtectionService } from '../security/brute-force-protection.service';
 import { NetrinResponseDto } from './dto/processos-judiciais.dto';
 import axios from 'axios';
+import { FileStorageService } from '../portador/services/file-storage.service';
+import { EnderecoService } from '../portador/services/endereco.service';
+import { CreateEnderecoDto } from '../portador/dto/create-endereco.dto';
 
 @Injectable()
 export class UserService {
@@ -25,6 +28,8 @@ export class UserService {
     private smsService: SmsService,
     private securityService: SecurityService,
     private bruteForceService: BruteForceProtectionService,
+    private readonly enderecoService: EnderecoService,
+    private readonly fileStorageService: FileStorageService,
   ) {}
 
   async createUser(userData: Partial<RegisteredUser>): Promise<RegisteredUser> {
@@ -269,12 +274,101 @@ export class UserService {
     return savedProcessos;
   }
 
+  async completeRegistration(
+    userId: number,
+    data: { nome: string; endereco: CreateEnderecoDto },
+    foto?: Express.Multer.File,
+  ) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new BadRequestException('Usuário não encontrado');
+    }
+
+    // Atualizar nome do usuário
+    const [firstName, ...lastNameParts] = data.nome.split(' ');
+    user.firstName = firstName;
+    user.lastName = lastNameParts.join(' ');
+
+    // Salvar foto, se fornecida
+    if (foto) {
+      const fotoPath = await this.fileStorageService.saveFile(
+        foto,
+        'user-photos',
+      );
+      user.fotoPath = fotoPath;
+    }
+
+    // Salvar endereço
+    await this.enderecoService.create(data.endereco, userId);
+
+    // Atualizar usuário no banco
+    await this.userRepository.save(user);
+
+    return { message: 'Cadastro concluído com sucesso' };
+  }
+
+  async updateProfile(
+    userId: number,
+    data: { nome?: string; endereco?: CreateEnderecoDto },
+    foto?: Express.Multer.File,
+  ) {
+    console.log('Dados recebidos para atualização:', data, foto);
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+
+    // Atualizar nome se fornecido
+    if (data.nome) {
+      const [firstName, ...lastNameParts] = data.nome.split(' ');
+      user.firstName = firstName;
+      user.lastName = lastNameParts.join(' ');
+    }
+
+    // Atualizar foto se fornecida
+    if (foto) {
+      // Se já existe uma foto, deletar a antiga
+      if (user.fotoPath) {
+        await this.fileStorageService.deleteFile(user.fotoPath);
+      }
+      const fotoPath = await this.fileStorageService.saveFile(
+        foto,
+        'user-photos',
+      );
+      user.fotoPath = fotoPath;
+    }
+
+    // Atualizar endereço se fornecido
+    if (data.endereco) {
+      // Buscar endereço existente
+      const enderecoExistente = await this.enderecoService.findByUser(userId);
+
+      if (enderecoExistente && enderecoExistente.length > 0) {
+        // Atualizar endereço existente
+        await this.enderecoService.update(
+          enderecoExistente[0].id,
+          data.endereco,
+        );
+      } else {
+        // Criar novo endereço se não existe
+        await this.enderecoService.create(data.endereco, userId);
+      }
+    }
+
+    // Salvar alterações do usuário
+    await this.userRepository.save(user);
+
+    return { message: 'Perfil atualizado com sucesso' };
+  }
+
   private generateVerificationCode(): string {
     // Gera um código numérico de 6 dígitos
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
-  // Adicione este método em UserService
   async fetchProcessosJudiciais(
     userId: number,
     cpf: string,
@@ -312,6 +406,4 @@ export class UserService {
       return [];
     }
   }
-
-  // Outros métodos para verificar CPF, etc.
 }

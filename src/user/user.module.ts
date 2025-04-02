@@ -7,6 +7,7 @@ import { UserController } from './user.controller';
 import { EmailModule } from '../email/email.module';
 import { SmsModule } from '../sms/sms.module';
 import { SecurityModule } from '../security/security.module';
+import { PortadorModule } from '../portador/portador.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { SecurityModule } from '../security/security.module';
     EmailModule,
     SmsModule,
     SecurityModule,
+    PortadorModule,
   ],
   providers: [UserService],
   controllers: [UserController],
