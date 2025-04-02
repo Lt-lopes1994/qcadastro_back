@@ -23,7 +23,7 @@ export class FileStorageService {
 
   async saveFile(
     file: Express.Multer.File,
-    type: 'cnh' | 'antt' | 'user-photos',
+    type: 'cnh' | 'antt' | 'user-photos' | 'empresa-logos',
   ): Promise<string> {
     const fileExtension = path.extname(file.originalname);
     const fileName = `${uuidv4()}${fileExtension}`;
