@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber } from 'class-validator';
 
 export class CreateDadosBancariosDto {
   @IsNotEmpty()
@@ -36,4 +36,8 @@ export class CreateDadosBancariosDto {
   @IsNotEmpty()
   @IsString()
   chavePix: string;
+
+  @IsNotEmpty()
+  @IsNumber()
+  empresaId: number;
 }

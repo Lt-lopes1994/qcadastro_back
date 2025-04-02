@@ -3,6 +3,7 @@ import {
   Injectable,
   BadRequestException,
   ConflictException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -24,12 +25,10 @@ export class EmpresaService {
     private securityService: SecurityService,
   ) {}
 
-  async create(
+  async createDadosEmpresa(
     createEmpresaDto: CreateEmpresaDto,
-    createDadosBancariosDto: CreateDadosBancariosDto,
-    logo?: Express.Multer.File,
+    userId: number,
   ): Promise<Empresa> {
-    // Verificar se o CNPJ já existe
     const empresaExistente = await this.empresaRepository.findOne({
       where: { cnpj: createEmpresaDto.cnpj },
     });
@@ -38,36 +37,79 @@ export class EmpresaService {
       throw new ConflictException('CNPJ já cadastrado');
     }
 
-    // Sanitizar dados
+    // Validar e ajustar o capitalSocial
+    createEmpresaDto.capitalSocial = createEmpresaDto.capitalSocial
+      ? createEmpresaDto.capitalSocial
+      : '0';
+
     const empresaSanitizada = this.sanitizarDados(createEmpresaDto);
+
+    const empresa = this.empresaRepository.create({
+      ...empresaSanitizada,
+      userId,
+    });
+
+    return await this.empresaRepository.save(empresa);
+  }
+
+  async createDadosBancarios(
+    createDadosBancariosDto: CreateDadosBancariosDto,
+    userId: number,
+  ): Promise<DadosBancarios> {
+    // Verificar se a empresa existe e pertence ao usuário
+    const empresa = await this.empresaRepository.findOne({
+      where: {
+        id: createDadosBancariosDto.empresaId,
+        userId: userId,
+      },
+    });
+
+    if (!empresa) {
+      throw new NotFoundException('Empresa não encontrada ou sem permissão');
+    }
+
     const dadosBancariosSanitizados = this.sanitizarDados(
       createDadosBancariosDto,
     );
 
-    // Salvar logo se fornecida
-    let logoPath: string | null = null;
-    if (logo) {
-      this.validarLogo(logo);
-      logoPath = await this.fileStorageService.saveFile(logo, 'empresa-logos');
-    }
-
-    // Criar empresa
-    const empresa = this.empresaRepository.create({
-      ...empresaSanitizada,
-      logoPath,
+    const dadosBancarios = this.dadosBancariosRepository.create({
+      ...dadosBancariosSanitizados,
+      userId,
+      empresa,
     });
 
-    // Criar dados bancários
-    const dadosBancarios = this.dadosBancariosRepository.create(
-      dadosBancariosSanitizados,
+    return await this.dadosBancariosRepository.save(dadosBancarios);
+  }
+
+  async saveLogo(logo: Express.Multer.File, userId: number): Promise<string> {
+    this.validarLogo(logo);
+    const logoPath = await this.fileStorageService.saveFile(
+      logo,
+      'empresa-logos',
     );
 
-    // Associar dados bancários à empresa
-    empresa.dadosBancarios = dadosBancarios;
+    // Atualizar a empresa com o caminho do logo
+    const empresa = await this.empresaRepository.findOne({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
 
-    // Salvar tudo
-    const savedEmpresa = (await this.empresaRepository.save([empresa]))[0];
-    return savedEmpresa;
+    if (empresa) {
+      empresa.logoPath = logoPath;
+      await this.empresaRepository.save(empresa);
+    }
+
+    return logoPath;
+  }
+
+  async findByUser(userId: number): Promise<Empresa[]> {
+    return this.empresaRepository.find({
+      where: { userId },
+      relations: ['dadosBancarios'], // Inclui os dados bancários e de empresas relacionados
+      order: {
+        createdAt: 'DESC', // Ordena do mais recente para o mais antigo
+      },
+    });
   }
 
   private sanitizarDados<T extends Record<string, any>>(dados: T): T {

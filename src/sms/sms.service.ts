@@ -1,29 +1,32 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as twilio from 'twilio';
+import axios from 'axios';
 
 @Injectable()
 export class SmsService {
-  private client;
+  private apiUser: string;
+  private apiKey: string;
+  private apiUrl: string;
 
   constructor(private configService: ConfigService) {
-    // Configurar com credenciais Twilio do ambiente apropriado
-    const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
-    const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
-    this.client = twilio(accountSid, authToken);
+    this.apiUser = this.configService.get<string>('IAGENTE_SMS_USER') ?? '';
+    this.apiKey = this.configService.get<string>('IAGENTE_SMS_KEY') ?? '';
+    this.apiUrl = this.configService.get<string>('IAGENTE_SMS_URL') ?? '';
   }
 
   async sendVerificationSms(phoneNumber: string, code: string): Promise<void> {
-    const twilioPhone = this.configService.get<string>('TWILIO_PHONE_NUMBER');
-
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      await this.client.messages.create({
-        body: `Seu código de verificação QCadastro é: ${code}`,
-        from: twilioPhone,
-        to: `+55${phoneNumber}`,
-      });
+      const url = `${this.apiUrl}?metodo=envio&usuario=${this.apiUser}&senha=${this.apiKey}&celular=${phoneNumber.replace(/\D/g, '')}&mensagem=Seu código de verificação QCadastro é: ${code}
+      Não compartilhe esse código com ninguém. Ele é exclusivo para você e tem validade de 30 minutos. Não responda a esse SMS.`;
+
+      const response = await axios.get(url);
+
+      // O iagenteSMS retorna um código numérico no response.data
+      if (!response.data.startsWith('OK')) {
+        throw new Error(`Erro no envio: ${response.data}`);
+      }
     } catch (error) {
       console.error('Erro ao enviar SMS:', error);
       throw new Error('Falha ao enviar SMS de verificação');
