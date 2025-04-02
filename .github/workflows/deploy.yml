@@ -1,0 +1,35 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v3
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Configurar chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo -e "Host *\n\tStrictHostKeyChecking no\n\tUserKnownHostsFile /dev/null" > ~/.ssh/config
+
+      - name: Deploy para produção e rodar migrations
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} '
+            cd /home/ubuntu/qcadastro_back && \
+            bash update-project.sh && \
+            npm install && \
+            NODE_ENV=production DB_HOST=127.0.0.1 DB_PORT=3307 DB_USER=bruno DB_PASSWORD=Quality#2025 DB_NAME=qeCadastro npm run migration:generate && \
+            NODE_ENV=production DB_HOST=127.0.0.1 DB_PORT=3307 DB_USER=bruno DB_PASSWORD=Quality#2025 DB_NAME=qeCadastro npm run migration:run
+          '
