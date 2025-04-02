@@ -5,24 +5,8 @@ services:
     restart: always
     expose:
       - "8000" # Apenas expõe internamente, não publica
-    environment:
-      - NODE_ENV=production
-      - DB_HOST=db
-      - DB_PORT=3306
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=qeCadastro
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRES_IN=24h
-      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
-      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
-      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
-      - IAGENTE_API_USER=${IAGENTE_API_USER}
-      - IAGENTE_API_KEY=${IAGENTE_API_KEY}
-      - IAGENTE_API_URL=${IAGENTE_API_URL}
-      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME}
-      - EMAIL_FROM_EMAIL=${EMAIL_FROM_EMAIL}
-      - EMAIL_REPLY_TO=${EMAIL_REPLY_TO}
+    env_file:
+      - .env
     volumes:
       - ./uploads:/app/uploads
       - ./temp:/app/temp
@@ -36,11 +20,8 @@ services:
     restart: always
     ports:
       - "3307:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=qeCadastro
-      - MYSQL_USER=${DB_USER}
-      - MYSQL_PASSWORD=${DB_PASSWORD}
+    env_file:
+      - .env
     volumes:
       - mysql_data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
