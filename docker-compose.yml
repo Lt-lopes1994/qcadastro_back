@@ -21,6 +21,7 @@ services:
     ports:
       - "3307:3306"
     environment:
+      - MYSQL_HOST=${DB_HOST}
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
       - MYSQL_DATABASE=qeCadastro
       - MYSQL_USER=${DB_USER}
