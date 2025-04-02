@@ -4,27 +4,25 @@ services:
     container_name: qcadastro_app
     restart: always
     expose:
-      - "8000"  # Apenas expõe internamente, não publica
+      - "8000" # Apenas expõe internamente, não publica
     environment:
       - NODE_ENV=production
-      # Configure para apontar para seu banco existente
-      - DB_HOST=db  # Use o nome do serviço
-      - DB_PORT=3306  # Use a porta interna do container
-      - DB_USER=bruno
-      - DB_PASSWORD=Quality#2025
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=qeCadastro
-      - JWT_SECRET=seu_jwt_secret_mais_seguro
+      - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRES_IN=24h
-      # Adicione as demais variáveis de ambiente necessárias
-      - TWILIO_ACCOUNT_SID=AC71ff0c686e247387ea98b6efe6de8dee
-      - TWILIO_AUTH_TOKEN=bab8bec5f0028e48f9ae2daac09d9e12
-      - TWILIO_PHONE_NUMBER=+17792178398
-      - IAGENTE_API_USER=qe@qualityentregas.com.br
-      - IAGENTE_API_KEY=c062a5c36b98f75b4188f969f517f3da
-      - IAGENTE_API_URL=https://api.iagentesmtp.com.br/api/v3/send/
-      - EMAIL_FROM_NAME=QCadastro
-      - EMAIL_FROM_EMAIL=noreply@qualityentregas.com.br
-      - EMAIL_REPLY_TO=relacionamento@qualityentregas.com.br
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      - IAGENTE_API_USER=${IAGENTE_API_USER}
+      - IAGENTE_API_KEY=${IAGENTE_API_KEY}
+      - IAGENTE_API_URL=${IAGENTE_API_URL}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME}
+      - EMAIL_FROM_EMAIL=${EMAIL_FROM_EMAIL}
+      - EMAIL_REPLY_TO=${EMAIL_REPLY_TO}
     volumes:
       - ./uploads:/app/uploads
       - ./temp:/app/temp
@@ -39,15 +37,15 @@ services:
     ports:
       - "3307:3306"
     environment:
-      - MYSQL_ROOT_PASSWORD=root_password_segura
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
       - MYSQL_DATABASE=qeCadastro
-      - MYSQL_USER=bruno
-      - MYSQL_PASSWORD=Quality#2025
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "bruno", "-pQuality#2025"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "bruno", "-pQuality#2025" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -58,10 +56,10 @@ services:
     container_name: qcadastro_nginx
     ports:
       - "80:80"
-      - "443:443"  # para HTTPS
+      - "443:443" # para HTTPS
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/ssl:/etc/nginx/ssl  # para certificados SSL
+      - ./nginx/ssl:/etc/nginx/ssl # para certificados SSL
       - ./nginx/logs:/var/log/nginx
     depends_on:
       - app
