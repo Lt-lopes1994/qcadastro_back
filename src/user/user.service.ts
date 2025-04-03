@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   Injectable,
   NotFoundException,
@@ -209,68 +211,65 @@ export class UserService {
     userId: number,
     netrinData: NetrinResponseDto,
   ): Promise<ProcessoJudicial[]> {
-    // Verificar se o usuário existe
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException(`Usuário com ID ${userId} não encontrado`);
     }
 
     const savedProcessos: ProcessoJudicial[] = [];
-
-    // Acessar os processos no objeto recebido
     const processos = netrinData.processosCPF?.processos || [];
 
+    console.log(`Encontrados ${processos.length} processos para salvar`);
+
     if (processos.length > 0) {
-      // Para cada processo na resposta do Netrin
       for (const processoData of processos) {
-        // Criar um novo objeto ProcessoJudicial
-        const processo = new ProcessoJudicial();
+        try {
+          const processo = new ProcessoJudicial();
 
-        // Mapear os campos que queremos salvar
-        processo.userId = userId;
-        processo.numero =
-          processoData.numeroProcessoUnico ||
-          processoData.numero ||
-          'Sem número';
-        processo.numeroProcessoUnico = processoData.numeroProcessoUnico || '';
-        processo.urlProcesso = processoData.urlProcesso || '';
-        processo.grauProcesso = processoData.grauProcesso || 0;
-        processo.unidadeOrigem = processoData.unidadeOrigem || '';
-        processo.assuntosCNJ = processoData.assuntosCNJ || null;
+          processo.userId = userId;
+          processo.numero =
+            processoData.numeroProcessoUnico ||
+            processoData.numero ||
+            'Sem número';
+          processo.numeroProcessoUnico = processoData.numeroProcessoUnico || '';
+          processo.urlProcesso = processoData.urlProcesso || '';
+          processo.grauProcesso = processoData.grauProcesso || 0;
+          processo.unidadeOrigem = processoData.unidadeOrigem || '';
+          processo.assuntosCNJ = processoData.assuntosCNJ || null;
 
-        // Dados adicionais relevantes
-        processo.tribunal = processoData.tribunal || '';
-        processo.estado = processoData.uf || '';
+          processo.tribunal = processoData.tribunal || '';
+          processo.estado = processoData.uf || '';
+          processo.tipo = processoData.classeProcessual?.nome || '';
 
-        // Extrair o tipo do processo (classe processual)
-        processo.tipo = processoData.classeProcessual?.nome || '';
-
-        // Definir status do processo
-        if (processoData.status && typeof processoData.status === 'object') {
-          processo.status = processoData.status.statusProcesso || '';
-        } else {
-          processo.status = 'EM TRAMITACAO'; // Status padrão
-        }
-
-        // Identificar assunto principal dos assuntosCNJ
-        if (processoData.assuntosCNJ && processoData.assuntosCNJ.length > 0) {
-          const assuntoPrincipal = processoData.assuntosCNJ.find(
-            (a) => a.ePrincipal,
-          );
-          if (assuntoPrincipal) {
-            processo.assuntoPrincipal = assuntoPrincipal.titulo;
+          if (processoData.status && typeof processoData.status === 'object') {
+            processo.status = processoData.status.statusProcesso || '';
+          } else {
+            processo.status = 'EM TRAMITACAO';
           }
+
+          if (processoData.assuntosCNJ && processoData.assuntosCNJ.length > 0) {
+            const assuntoPrincipal = processoData.assuntosCNJ.find(
+              (a) => a.ePrincipal,
+            );
+            if (assuntoPrincipal) {
+              processo.assuntoPrincipal = assuntoPrincipal.titulo;
+            }
+          }
+
+          processo.partes = processoData.partes || null;
+
+          console.log(`Salvando processo ${processo.numero}`);
+          const savedProcesso = await this.processoRepository.save(processo);
+          console.log(`Processo ${savedProcesso.id} salvo com sucesso`);
+
+          savedProcessos.push(savedProcesso);
+        } catch (error) {
+          console.error(`Erro ao salvar processo:`, error);
         }
-
-        // Salvar partes do processo
-        processo.partes = processoData.partes || null;
-
-        // Salvar o processo no banco de dados
-        const savedProcesso = await this.processoRepository.save(processo);
-        savedProcessos.push(savedProcesso);
       }
     }
 
+    console.log(`Total de processos salvos: ${savedProcessos.length}`);
     return savedProcessos;
   }
 
@@ -380,29 +379,35 @@ export class UserService {
         throw new NotFoundException(`Usuário com ID ${userId} não encontrado`);
       }
 
-      // Token da API Netrin (idealmente deveria estar em variáveis de ambiente)
       const token = process.env.NETRIN_TOKEN;
       const url = `https://api.netrin.com.br/v1/consulta-composta?token=${token}&s=processos-full&cpf=${cpf}`;
 
-      // Fazer a requisição para a API Netrin
       try {
         const response = await axios.get(url);
-        console.log('Resposta da API Netrin:', response.data);
 
-        // Salvar os processos retornados
-        if (response.data) {
-          return this.saveProcessosJudiciais(userId, response.data);
+        // Corrigir o acesso aos dados - a estrutura correta é response.data.processosFull
+        if (
+          response.data &&
+          response.data.processosFull &&
+          response.data.processosFull.processos
+        ) {
+          // Criar um objeto no formato esperado pelo saveProcessosJudiciais
+          const processosData = {
+            processosCPF: {
+              processos: response.data.processosFull.processos,
+            },
+          };
+
+          return this.saveProcessosJudiciais(userId, processosData);
         }
 
         return [];
       } catch (error) {
         console.error('Erro ao buscar processos judiciais:', error);
-        // Não lançar erro para não interromper o fluxo de criação do usuário
         return [];
       }
     } catch (error) {
       console.error('Erro ao buscar processos judiciais:', error);
-      // Não lançar erro para não interromper o fluxo de criação do usuário
       return [];
     }
   }

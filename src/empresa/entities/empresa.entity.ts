@@ -68,7 +68,7 @@ export class Empresa {
   @Column()
   porte: string;
 
-  @Column()
+  @Column({ default: 0 })
   capitalSocial: string;
 
   @Column({ nullable: true })

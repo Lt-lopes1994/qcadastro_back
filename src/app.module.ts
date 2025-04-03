@@ -24,6 +24,7 @@ import { CadastroVeiculoModule } from './cadastro-veiculo/cadastro-veiculo.modul
 import { EmpresaModule } from './empresa/empresa.module';
 import { Empresa } from './empresa/entities/empresa.entity';
 import { DadosBancarios } from './empresa/entities/dados-bancarios.entity';
+import { ProcessosJudiciaisModule } from './processos-judiciais/processos-judiciais.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { DadosBancarios } from './empresa/entities/dados-bancarios.entity';
     AuthModule,
     CadastroVeiculoModule,
     EmpresaModule,
+    ProcessosJudiciaisModule,
   ],
   controllers: [AppController],
   providers: [

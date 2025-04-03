@@ -38,11 +38,10 @@ export class EmpresaService {
     }
 
     // Validar e ajustar o capitalSocial
-    createEmpresaDto.capitalSocial = createEmpresaDto.capitalSocial
-      ? createEmpresaDto.capitalSocial
-      : '0';
 
     const empresaSanitizada = this.sanitizarDados(createEmpresaDto);
+
+    console.log('empresaSanitizada', empresaSanitizada);
 
     const empresa = this.empresaRepository.create({
       ...empresaSanitizada,
