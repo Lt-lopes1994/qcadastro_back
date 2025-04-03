@@ -80,23 +80,37 @@ export class EmpresaService {
     return await this.dadosBancariosRepository.save(dadosBancarios);
   }
 
-  async saveLogo(logo: Express.Multer.File, userId: number): Promise<string> {
+  async saveLogo(
+    empresaId: number,
+    logo: Express.Multer.File,
+    userId: number,
+  ): Promise<string> {
+    // Verificar se a empresa existe e pertence ao usuário
+    const empresa = await this.empresaRepository.findOne({
+      where: {
+        id: empresaId,
+        userId: userId,
+      },
+    });
+
+    if (!empresa) {
+      throw new NotFoundException('Empresa não encontrada ou sem permissão');
+    }
+
     this.validarLogo(logo);
     const logoPath = await this.fileStorageService.saveFile(
       logo,
       'empresa-logos',
     );
 
-    // Atualizar a empresa com o caminho do logo
-    const empresa = await this.empresaRepository.findOne({
-      where: { userId },
-      order: { createdAt: 'DESC' },
-    });
-
-    if (empresa) {
-      empresa.logoPath = logoPath;
-      await this.empresaRepository.save(empresa);
+    // Deletar logo antigo se existir
+    if (empresa.logoPath) {
+      await this.fileStorageService.deleteFile(empresa.logoPath);
     }
+
+    // Atualizar a empresa com o novo caminho do logo
+    empresa.logoPath = logoPath;
+    await this.empresaRepository.save(empresa);
 
     return logoPath;
   }

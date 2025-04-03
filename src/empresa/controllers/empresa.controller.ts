@@ -8,6 +8,8 @@ import {
   Req,
   UseGuards,
   Get,
+  Patch,
+  Param,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { EmpresaService } from '../services/empresa.service';
@@ -43,14 +45,15 @@ export class EmpresaController {
     );
   }
 
-  @Post('logo')
+  @Patch(':id/logo')
   @UseInterceptors(FileInterceptor('logo'))
   async uploadLogo(
+    @Param('id') id: number,
     @Req() request: UserRequest,
     @UploadedFile() logo: Express.Multer.File,
   ) {
     const userId = request.user.id;
-    return await this.empresaService.saveLogo(logo, userId);
+    return await this.empresaService.saveLogo(id, logo, userId);
   }
 
   @Get('user')
