@@ -10,6 +10,7 @@ import {
   Get,
   Patch,
   Param,
+  Delete,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { EmpresaService } from '../services/empresa.service';
@@ -31,6 +32,15 @@ export class EmpresaController {
   ) {
     const userId = request.user.id;
     return await this.empresaService.createDadosEmpresa(empresa, userId);
+  }
+
+  @Delete(':id')
+  async deleteDadosEmpresa(
+    @Param('id') id: number,
+    @Req() request: UserRequest,
+  ) {
+    const userId = request.user.id;
+    return await this.empresaService.deleteDadosEmpresa(id, userId);
   }
 
   @Post('dados-bancarios')

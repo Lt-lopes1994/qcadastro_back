@@ -25,6 +25,8 @@ import { EmpresaModule } from './empresa/empresa.module';
 import { Empresa } from './empresa/entities/empresa.entity';
 import { DadosBancarios } from './empresa/entities/dados-bancarios.entity';
 import { ProcessosJudiciaisModule } from './processos-judiciais/processos-judiciais.module';
+import { LoggerModule } from './logger/logger.module';
+import { SystemLog } from './logger/entities/system-log.entity';
 
 @Module({
   imports: [
@@ -55,6 +57,7 @@ import { ProcessosJudiciaisModule } from './processos-judiciais/processos-judici
           Veiculo,
           Empresa,
           DadosBancarios,
+          SystemLog,
         ],
         logging: true,
         synchronize: false,
@@ -76,6 +79,7 @@ import { ProcessosJudiciaisModule } from './processos-judiciais/processos-judici
     CadastroVeiculoModule,
     EmpresaModule,
     ProcessosJudiciaisModule,
+    LoggerModule,
   ],
   controllers: [AppController],
   providers: [
