@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 // src/empresa/services/empresa.service.ts
 import {
   Injectable,
@@ -13,6 +15,7 @@ import { CreateEmpresaDto } from '../dto/create-empresa.dto';
 import { CreateDadosBancariosDto } from '../dto/create-dados-bancarios.dto';
 import { FileStorageService } from '../../portador/services/file-storage.service';
 import { SecurityService } from '../../security/security.service';
+import { LoggerService } from 'src/logger/service/logger.service';
 
 @Injectable()
 export class EmpresaService {
@@ -23,6 +26,7 @@ export class EmpresaService {
     private dadosBancariosRepository: Repository<DadosBancarios>,
     private fileStorageService: FileStorageService,
     private securityService: SecurityService,
+    private readonly loggerService: LoggerService,
   ) {}
 
   async createDadosEmpresa(
@@ -49,6 +53,51 @@ export class EmpresaService {
     });
 
     return await this.empresaRepository.save(empresa);
+  }
+
+  async deleteDadosEmpresa(idEmpresa: number, userId: number) {
+    const empresa = await this.empresaRepository.findOne({
+      where: { id: idEmpresa, userId },
+      relations: ['dadosBancarios'], // Inclui os dados bancários relacionados
+    });
+
+    if (!empresa) {
+      throw new NotFoundException('Empresa não encontrada ou sem permissão');
+    }
+    try {
+      // Se existirem dados bancários, deleta-os
+      if (empresa.dadosBancarios) {
+        await this.dadosBancariosRepository.delete({
+          id: empresa.dadosBancarios.id,
+        });
+      }
+
+      // Verifica se a empresa possui logo e deleta
+      if (empresa.logoPath) {
+        await this.fileStorageService.deleteFile(empresa.logoPath);
+      }
+      // Deleta a empresa
+      await this.loggerService.log({
+        action: 'deleteDadosEmpresa',
+        entity: 'Empresa',
+        entityId: idEmpresa,
+        userId,
+        details: { attempted: empresa },
+        status: 'success',
+      });
+
+      await this.empresaRepository.delete(idEmpresa);
+    } catch (error) {
+      await this.loggerService.log({
+        action: 'deleteDadosEmpresa',
+        entity: 'Empresa',
+        entityId: idEmpresa,
+        userId,
+        details: { attempted: empresa },
+        status: 'error',
+        errorMessage: error.message,
+      });
+    }
   }
 
   async createDadosBancarios(
@@ -80,23 +129,37 @@ export class EmpresaService {
     return await this.dadosBancariosRepository.save(dadosBancarios);
   }
 
-  async saveLogo(logo: Express.Multer.File, userId: number): Promise<string> {
+  async saveLogo(
+    empresaId: number,
+    logo: Express.Multer.File,
+    userId: number,
+  ): Promise<string> {
+    // Verificar se a empresa existe e pertence ao usuário
+    const empresa = await this.empresaRepository.findOne({
+      where: {
+        id: empresaId,
+        userId: userId,
+      },
+    });
+
+    if (!empresa) {
+      throw new NotFoundException('Empresa não encontrada ou sem permissão');
+    }
+
     this.validarLogo(logo);
     const logoPath = await this.fileStorageService.saveFile(
       logo,
       'empresa-logos',
     );
 
-    // Atualizar a empresa com o caminho do logo
-    const empresa = await this.empresaRepository.findOne({
-      where: { userId },
-      order: { createdAt: 'DESC' },
-    });
-
-    if (empresa) {
-      empresa.logoPath = logoPath;
-      await this.empresaRepository.save(empresa);
+    // Deletar logo antigo se existir
+    if (empresa.logoPath) {
+      await this.fileStorageService.deleteFile(empresa.logoPath);
     }
+
+    // Atualizar a empresa com o novo caminho do logo
+    empresa.logoPath = logoPath;
+    await this.empresaRepository.save(empresa);
 
     return logoPath;
   }
