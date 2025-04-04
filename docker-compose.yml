@@ -3,7 +3,7 @@ services:
     build: .
     container_name: qcadastro_app
     restart: always
-    enviromnt:
+    enviroment:
       - PORT=8000
     expose:
       - "8000" # Apenas expõe internamente, não publica
