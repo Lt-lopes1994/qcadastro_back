@@ -18,7 +18,7 @@ export class ProcessoJudicial {
   @Column({ nullable: true })
   numeroProcessoUnico: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   urlProcesso: string;
 
   @Column({ type: 'int', nullable: true })

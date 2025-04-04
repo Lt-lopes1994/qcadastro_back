@@ -15,6 +15,11 @@
 # ORM config
 /ormconfig.json
 
+# SSl Certificates
+/nginx/ssl/*
+!nginx/ssl/.gitkeep
+
+
 # Logs
 logs
 *.log
