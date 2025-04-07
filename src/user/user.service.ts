@@ -172,6 +172,22 @@ export class UserService {
     return true;
   }
 
+  async resendVerificationCode(
+    email: string,
+    phoneNumber: string,
+  ): Promise<void> {
+    const user = await this.findUserByEmail(email);
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado com este email');
+    }
+
+    // Enviar o código de verificação por email
+    await this.sendEmailVerificationCode(email);
+
+    // Enviar o código de verificação por SMS
+    await this.sendPhoneVerificationCode(phoneNumber);
+  }
+
   async login(
     cpf: string,
     password: string,
