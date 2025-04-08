@@ -61,7 +61,14 @@ export class PortadorController {
   // Implementar validação de acesso baseado em role se necessário:
 
   @Get()
-  findAll() {
+  findAll(@Req() request: UserRequest) {
+    // Verificar se o usuário é admin
+    // Se não for admin, lançar uma exceção de permissão negada
+    if (request.user.role !== 'admin') {
+      throw new ForbiddenException(
+        'Apenas administradores podem acessar todos os portadores',
+      );
+    }
     return this.portadorService.findAll();
   }
 
@@ -102,6 +109,37 @@ export class PortadorController {
     return this.portadorService.findByUser(userId);
   }
 
+  @Get('portador-filtrado')
+  async findAllNewPortadores(
+    @Req() request: UserRequest,
+    @Body('startDate') startDate: Date,
+    @Body('endDate') endDate: Date,
+  ) {
+    console.log('startDate', startDate);
+    console.log('endDate', endDate);
+    // Verificar se o usuário é admin ou auditor
+    if (request.user.role !== 'admin' && request.user.role !== 'auditor') {
+      throw new ForbiddenException(
+        'Apenas administradores podem acessar todos os portadores',
+      );
+    }
+    // Verificar se as datas foram enviadas
+    if (!startDate || !endDate) {
+      throw new BadRequestException(
+        'As datas de início e fim são obrigatórias',
+      );
+    }
+    // Verificar se a data de início é anterior à data de fim
+    if (startDate >= endDate) {
+      throw new BadRequestException(
+        'A data de início deve ser anterior à data de fim',
+      );
+    }
+    // Chamar o serviço para buscar os portadores filtrados
+    // com base nas datas fornecidas
+    return this.portadorService.findAllNewPortadores(startDate, endDate);
+  }
+
   @Patch(':id')
   @UseInterceptors(
     FileFieldsInterceptor([
@@ -133,10 +171,12 @@ export class PortadorController {
 
   // Proteger rotas administrativas com verificação de role
   @Post(':id/aprovar')
-  async aprovar(
+  @UseGuards(JwtAuthGuard)
+  async aprovarDocumentos(
     @Param('id', ParseIntPipe) id: number,
     @Req() request: UserRequest,
   ) {
+    // Verificar se o usuário é admin
     if (request.user.role !== 'admin') {
       throw new ForbiddenException(
         'Apenas administradores podem aprovar documentos',
@@ -147,11 +187,13 @@ export class PortadorController {
   }
 
   @Post(':id/rejeitar')
-  async rejeitar(
+  @UseGuards(JwtAuthGuard)
+  async rejeitarDocumentos(
     @Param('id', ParseIntPipe) id: number,
     @Body('motivo') motivo: string,
     @Req() request: UserRequest,
   ) {
+    // Verificar se o usuário é admin
     if (request.user.role !== 'admin') {
       throw new ForbiddenException(
         'Apenas administradores podem rejeitar documentos',

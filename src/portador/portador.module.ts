@@ -10,6 +10,7 @@ import { FileStorageService } from './services/file-storage.service';
 import { EnderecoService } from './services/endereco.service';
 import { EnderecoController } from './controllers/endereco.controller';
 import { GeocodingService } from './services/geocoding.service';
+import { EmailModule } from '../email/email.module'; // Importe o módulo, não o serviço diretamente
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { GeocodingService } from './services/geocoding.service';
         fileSize: 5 * 1024 * 1024, // 5MB
       },
     }),
+    EmailModule, // Adicione o EmailModule aos imports
   ],
   controllers: [PortadorController, EnderecoController],
   providers: [
@@ -26,6 +28,7 @@ import { GeocodingService } from './services/geocoding.service';
     FileStorageService,
     EnderecoService,
     GeocodingService,
+    // Remova o EmailService daqui, pois ele será fornecido pelo EmailModule
   ],
   exports: [PortadorService, EnderecoService, FileStorageService],
 })

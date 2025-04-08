@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 import {
   Injectable,
   NotFoundException,
@@ -5,11 +7,12 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Between } from 'typeorm';
 import { Portador } from '../entities/portador.entity';
 import { CreatePortadorDto } from '../dto/create-portador.dto';
 import { FileStorageService } from './file-storage.service';
 import { RegisteredUser } from '../../user/entity/user.entity';
+import { EmailService } from 'src/email/email.service';
 
 @Injectable()
 export class PortadorService {
@@ -19,6 +22,7 @@ export class PortadorService {
     @InjectRepository(RegisteredUser)
     private userRepository: Repository<RegisteredUser>,
     private fileStorageService: FileStorageService,
+    private readonly emailService: EmailService,
   ) {}
 
   async create(
@@ -69,7 +73,50 @@ export class PortadorService {
   }
 
   async findAll(): Promise<Portador[]> {
-    return this.portadorRepository.find();
+    return this.portadorRepository.find({ relations: ['user'] });
+  }
+
+  async findAllNewPortadores(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Portador[]> {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    end.setHours(23, 59, 59, 999); // Define o final do dia
+    start.setHours(0, 0, 0, 0); // Define o início do dia
+
+    console.log(
+      'Datas filtradas:',
+      start.toISOString(),
+      end.toISOString(),
+      startDate,
+      endDate,
+      start,
+      end,
+    );
+
+    try {
+      const allPortadores = await this.portadorRepository.find({
+        relations: ['user'],
+        where: {
+          createdAt: Between(start, end),
+        },
+      });
+      console.log('Portadores encontrados:', allPortadores);
+
+      if (allPortadores.length === 0) {
+        throw new NotFoundException(
+          'Nenhum portador encontrado entre as datas fornecidas',
+        );
+      }
+      return allPortadores;
+    } catch (error) {
+      console.error('Erro ao buscar portadores:', error);
+      throw new BadRequestException(
+        'Erro ao buscar portadores entre as datas fornecidas',
+      );
+    }
   }
 
   async findByUser(userId: number): Promise<Portador[]> {
@@ -144,24 +191,79 @@ export class PortadorService {
     await this.portadorRepository.remove(portador);
   }
 
+  /**
+   * Aprova os documentos de um portador
+   */
   async aprovarDocumentos(id: number): Promise<Portador> {
     const portador = await this.findOne(id);
+    if (!portador) {
+      throw new NotFoundException(`Portador com ID ${id} não encontrado`);
+    }
+
+    // Atualizar o status para aprovado
     portador.status = 'APROVADO';
+    portador.updatedAt = new Date();
     portador.motivoRejeicao = '';
-    return this.portadorRepository.save(portador);
+
+    const portadorAtualizado = await this.portadorRepository.save(portador);
+
+    // Notificar o usuário sobre a aprovação
+    try {
+      const user = await this.userRepository.findOne({
+        where: { id: portador.userId },
+      });
+      if (user && user.email) {
+        await this.emailService.sendDocumentApprovedEmail(user.email, {
+          nome: `${user.firstName} ${user.lastName}`,
+          tipoDocumento: 'Documentos de motorista',
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao enviar email de aprovação:', error);
+    }
+
+    return portadorAtualizado;
   }
 
+  /**
+   * Rejeita os documentos de um portador
+   */
   async rejeitarDocumentos(id: number, motivo: string): Promise<Portador> {
     if (!motivo) {
       throw new BadRequestException(
-        'É necessário fornecer um motivo para rejeição',
+        'É necessário informar o motivo da rejeição',
       );
     }
 
     const portador = await this.findOne(id);
+    if (!portador) {
+      throw new NotFoundException(`Portador com ID ${id} não encontrado`);
+    }
+
+    // Atualizar o status para rejeitado
     portador.status = 'REJEITADO';
+    portador.updatedAt = new Date();
     portador.motivoRejeicao = motivo;
-    return this.portadorRepository.save(portador);
+
+    const portadorAtualizado = await this.portadorRepository.save(portador);
+
+    // Notificar o usuário sobre a rejeição
+    try {
+      const user = await this.userRepository.findOne({
+        where: { id: portador.userId },
+      });
+      if (user && user.email) {
+        await this.emailService.sendDocumentRejectedEmail(user.email, {
+          nome: `${user.firstName} ${user.lastName}`,
+          tipoDocumento: 'Documentos de motorista',
+          motivo: motivo,
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao enviar email de rejeição:', error);
+    }
+
+    return portadorAtualizado;
   }
 
   /**

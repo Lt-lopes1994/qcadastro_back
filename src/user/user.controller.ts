@@ -160,8 +160,6 @@ export class UserController {
     @Body('startDate') startDateStr: string,
     @Body('endDate') endDateStr: string,
   ) {
-    console.log('Datas recebidas:', startDateStr, endDateStr);
-
     // Validar e converter as datas
     const startDate = new Date(startDateStr);
     const endDate = new Date(endDateStr);
