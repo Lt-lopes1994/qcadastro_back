@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   Controller,
   Get,
@@ -33,7 +35,7 @@ export class PortadorController {
     ]),
   )
   async create(
-    @Body() createPortadorDto: CreatePortadorDto,
+    @Body() rawData: any,
     @UploadedFiles()
     files: {
       cnhImagem?: Express.Multer.File[];
@@ -45,6 +47,39 @@ export class PortadorController {
     if (!files.cnhImagem || !files.cnhImagem[0]) {
       throw new BadRequestException('A imagem da CNH é obrigatória');
     }
+
+    // Mapear os dados recebidos para a estrutura esperada pelo DTO
+    const createPortadorDto: CreatePortadorDto = {
+      cnhNumero: rawData.cnhNumero,
+      cnhCategoria: rawData.cnhCategoria,
+      cnhValidade: rawData.cnhValidade,
+      anttNumero: rawData.anttNumero,
+      anttValidade: rawData.anttValidade,
+      cpf: rawData.cpf,
+      motoristasCNHcompleto: {
+        cnh: {
+          numero: rawData.cnhNumero,
+          categoria: rawData.cnhCategoria,
+          dataExpiracao: rawData.cnhValidade,
+          renach: rawData.cnhRenach,
+          primeiraCnh: rawData.cnhPrimeira,
+          emissaoData: rawData.cnhEmissao,
+          numeroRegistro: rawData.cnhNumeroRegistro,
+          observacao: rawData.cnhObservacao,
+          dataNascimento: rawData.dataNascimento,
+        },
+        cliente: {
+          nome: rawData.nomeCompleto,
+          numeroDocumento: rawData.cpf,
+          dataNascimento: rawData.dataNascimento,
+          nomeMae: rawData.nomeMae,
+          nomePai: rawData.nomePai,
+          numeroRG: rawData.numeroRG,
+          estadoRG: rawData.estadoRG,
+          expeditorRG: rawData.expeditorRG,
+        },
+      },
+    };
 
     // Obter o ID do usuário do token JWT
     const userId = request.user.id;
@@ -109,7 +144,7 @@ export class PortadorController {
     return this.portadorService.findByUser(userId);
   }
 
-  @Get('portador-filtrado')
+  @Post('portador-filtrado')
   async findAllNewPortadores(
     @Req() request: UserRequest,
     @Body('startDate') startDate: Date,

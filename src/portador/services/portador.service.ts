@@ -1,5 +1,6 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   Injectable,
   NotFoundException,
@@ -13,6 +14,18 @@ import { CreatePortadorDto } from '../dto/create-portador.dto';
 import { FileStorageService } from './file-storage.service';
 import { RegisteredUser } from '../../user/entity/user.entity';
 import { EmailService } from 'src/email/email.service';
+import { ProcessoJudicial } from '../../user/entity/processo-judicial.entity';
+
+// Manipulação segura de datas
+function parseDate(dateString?: string): Date | null {
+  if (!dateString) return null;
+
+  // Tenta converter a data
+  const parsedDate = new Date(dateString);
+
+  // Verifica se é uma data válida
+  return isNaN(parsedDate.getTime()) ? null : parsedDate;
+}
 
 @Injectable()
 export class PortadorService {
@@ -21,6 +34,8 @@ export class PortadorService {
     private portadorRepository: Repository<Portador>,
     @InjectRepository(RegisteredUser)
     private userRepository: Repository<RegisteredUser>,
+    @InjectRepository(ProcessoJudicial)
+    private processoRepository: Repository<ProcessoJudicial>,
     private fileStorageService: FileStorageService,
     private readonly emailService: EmailService,
   ) {}
@@ -44,17 +59,71 @@ export class PortadorService {
 
     // Criar novo portador
     const portador = new Portador();
+
+    // Dados básicos
     Object.assign(portador, {
-      ...createPortadorDto,
+      cnhNumero: createPortadorDto.cnhNumero,
+      cnhCategoria: createPortadorDto.cnhCategoria,
       cnhValidade: new Date(createPortadorDto.cnhValidade),
       anttValidade: createPortadorDto.anttValidade
         ? new Date(createPortadorDto.anttValidade)
         : null,
+      anttNumero: createPortadorDto.anttNumero,
       cnhImagemPath,
       anttImagemPath,
       userId,
       status: 'PENDENTE',
     });
+
+    // Dados completos da CNH e do cliente
+    if (createPortadorDto.motoristasCNHcompleto) {
+      const { cnh, cliente } = createPortadorDto.motoristasCNHcompleto;
+
+      // Dados da CNH
+      if (cnh) {
+        portador.cnhRenach = cnh.renach ?? '';
+        if (cnh.primeiraCnh) {
+          const parsedDate = parseDate(cnh.primeiraCnh);
+          if (parsedDate) {
+            portador.cnhPrimeira = parsedDate;
+          }
+        }
+
+        if (cnh.emissaoData) {
+          const parsedDate = parseDate(cnh.emissaoData);
+          if (parsedDate) {
+            portador.cnhEmissao = parsedDate;
+          }
+        }
+        portador.cnhNumeroRegistro = cnh.numeroRegistro ?? '';
+        portador.cnhObservacao = cnh.observacao ?? '';
+        portador.cnhToxicologico = cnh.toxicologico;
+        portador.cnhTelefone = cnh.telefone ?? '';
+        portador.cnhEndereco = cnh.endereco ?? '';
+        portador.cnhEmail = cnh.email ?? '';
+        if (cnh.dataNascimento) {
+          portador.dataNascimento = new Date(cnh.dataNascimento);
+        }
+        portador.cnhBloqueios = cnh.bloqueios;
+      }
+
+      // Dados do cliente
+      if (cliente) {
+        portador.nomeCompleto = cliente.nome ?? '';
+        portador.nomeMae = cliente.nomeMae ?? '';
+        portador.nomePai = cliente.nomePai ?? '';
+        portador.cpf = cliente.numeroDocumento ?? '';
+        portador.numeroRG = cliente.numeroRG ?? '';
+        portador.estadoRG = cliente.estadoRG ?? '';
+        portador.expeditorRG = cliente.expeditorRG ?? '';
+        if (cliente.dataNascimento) {
+          portador.dataNascimento = new Date(cliente.dataNascimento);
+        }
+      }
+    } else if (createPortadorDto.cpf) {
+      // Se só tiver o CPF e não tiver dados completos
+      portador.cpf = createPortadorDto.cpf;
+    }
 
     // Salvar o portador
     const savedPortador = await this.portadorRepository.save(portador);
@@ -80,41 +149,89 @@ export class PortadorService {
     startDate: Date,
     endDate: Date,
   ): Promise<Portador[]> {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    end.setHours(23, 59, 59, 999); // Define o final do dia
-    start.setHours(0, 0, 0, 0); // Define o início do dia
-
-    console.log(
-      'Datas filtradas:',
-      start.toISOString(),
-      end.toISOString(),
-      startDate,
-      endDate,
-      start,
-      end,
-    );
-
     try {
-      const allPortadores = await this.portadorRepository.find({
+      // Converter as datas para o início e fim do dia em UTC
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      // Ajustar para o início do dia em UTC (00:00:00.000)
+      start.setUTCHours(0, 0, 0, 0);
+
+      // Ajustar para o fim do dia em UTC (23:59:59.999)
+      end.setUTCHours(23, 59, 59, 999);
+
+      console.log('Data início (UTC):', start.toISOString());
+      console.log('Data fim (UTC):', end.toISOString());
+
+      // Buscar portadores com relações
+      const portadores = await this.portadorRepository.find({
         relations: ['user'],
         where: {
           createdAt: Between(start, end),
         },
       });
-      console.log('Portadores encontrados:', allPortadores);
 
-      if (allPortadores.length === 0) {
-        throw new NotFoundException(
-          'Nenhum portador encontrado entre as datas fornecidas',
-        );
+      // Buscar IDs de usuários únicos dos portadores
+      const userIds = [...new Set(portadores.map((p) => p.userId))];
+
+      // Buscar todos os processos judiciais desses usuários em uma única query
+      const processos = await this.processoRepository
+        .createQueryBuilder('processo')
+        .where('processo.userId IN (:...userIds)', { userIds })
+        .getMany();
+
+      // Organizar processos por userId para acesso rápido
+      const processosPorUsuario = processos.reduce((acc, processo) => {
+        if (!acc[processo.userId]) {
+          acc[processo.userId] = [];
+        }
+        acc[processo.userId].push(processo);
+        return acc;
+      }, {});
+
+      // Remover dados sensíveis e adicionar processos
+      for (const portador of portadores) {
+        if (portador.user) {
+          // Campos a manter do usuário
+          const {
+            id,
+            firstName,
+            lastName,
+            cpf,
+            email,
+            phoneNumber,
+            role,
+            isActive,
+            fotoPath,
+            createdAt,
+            updatedAt,
+          } = portador.user;
+
+          // Substituir objeto user com versão filtrada
+          portador.user = {
+            id,
+            firstName,
+            lastName,
+            cpf,
+            email,
+            phoneNumber,
+            role,
+            isActive,
+            fotoPath,
+            createdAt,
+            updatedAt,
+            // Adicionar processos judiciais
+            processos: processosPorUsuario[portador.userId] || [],
+          } as unknown as RegisteredUser;
+        }
       }
-      return allPortadores;
+
+      console.log('Portadores encontrados pela query:', portadores.length);
+      return portadores;
     } catch (error) {
       console.error('Erro ao buscar portadores:', error);
       throw new BadRequestException(
-        'Erro ao buscar portadores entre as datas fornecidas',
+        'Erro ao buscar portadores: ' + error.message,
       );
     }
   }

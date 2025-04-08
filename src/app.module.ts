@@ -28,6 +28,7 @@ import { ProcessosJudiciaisModule } from './processos-judiciais/processos-judici
 import { LoggerModule } from './logger/logger.module';
 import { SystemLog } from './logger/entities/system-log.entity';
 import { AdminModule } from './admin/admin.module';
+import { RolesGuard } from './security/guards/roles.guard';
 
 @Module({
   imports: [
@@ -95,6 +96,10 @@ import { AdminModule } from './admin/admin.module';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
     },
   ],
 })
