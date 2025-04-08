@@ -1,11 +1,9 @@
 import { Module } from '@nestjs/common';
-import { AdminController } from './controller/admin.controller';
-import { AdminService } from './service/admin.service';
 
 @Module({
   imports: [],
-  controllers: [AdminController],
-  providers: [AdminService],
+  controllers: [],
+  providers: [],
   exports: [],
   // Add any other modules or services that are needed for the admin module
   // For example, if you have a UserService, you can import it here
