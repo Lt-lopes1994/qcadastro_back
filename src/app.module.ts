@@ -27,6 +27,8 @@ import { DadosBancarios } from './empresa/entities/dados-bancarios.entity';
 import { ProcessosJudiciaisModule } from './processos-judiciais/processos-judiciais.module';
 import { LoggerModule } from './logger/logger.module';
 import { SystemLog } from './logger/entities/system-log.entity';
+import { AdminModule } from './admin/admin.module';
+import { RolesGuard } from './security/guards/roles.guard';
 
 @Module({
   imports: [
@@ -80,6 +82,7 @@ import { SystemLog } from './logger/entities/system-log.entity';
     EmpresaModule,
     ProcessosJudiciaisModule,
     LoggerModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [
@@ -93,6 +96,10 @@ import { SystemLog } from './logger/entities/system-log.entity';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
     },
   ],
 })

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   Controller,
   Get,
@@ -33,7 +35,7 @@ export class PortadorController {
     ]),
   )
   async create(
-    @Body() createPortadorDto: CreatePortadorDto,
+    @Body() rawData: any,
     @UploadedFiles()
     files: {
       cnhImagem?: Express.Multer.File[];
@@ -45,6 +47,39 @@ export class PortadorController {
     if (!files.cnhImagem || !files.cnhImagem[0]) {
       throw new BadRequestException('A imagem da CNH é obrigatória');
     }
+
+    // Mapear os dados recebidos para a estrutura esperada pelo DTO
+    const createPortadorDto: CreatePortadorDto = {
+      cnhNumero: rawData.cnhNumero,
+      cnhCategoria: rawData.cnhCategoria,
+      cnhValidade: rawData.cnhValidade,
+      anttNumero: rawData.anttNumero,
+      anttValidade: rawData.anttValidade,
+      cpf: rawData.cpf,
+      motoristasCNHcompleto: {
+        cnh: {
+          numero: rawData.cnhNumero,
+          categoria: rawData.cnhCategoria,
+          dataExpiracao: rawData.cnhValidade,
+          renach: rawData.cnhRenach,
+          primeiraCnh: rawData.cnhPrimeira,
+          emissaoData: rawData.cnhEmissao,
+          numeroRegistro: rawData.cnhNumeroRegistro,
+          observacao: rawData.cnhObservacao,
+          dataNascimento: rawData.dataNascimento,
+        },
+        cliente: {
+          nome: rawData.nomeCompleto,
+          numeroDocumento: rawData.cpf,
+          dataNascimento: rawData.dataNascimento,
+          nomeMae: rawData.nomeMae,
+          nomePai: rawData.nomePai,
+          numeroRG: rawData.numeroRG,
+          estadoRG: rawData.estadoRG,
+          expeditorRG: rawData.expeditorRG,
+        },
+      },
+    };
 
     // Obter o ID do usuário do token JWT
     const userId = request.user.id;
@@ -61,7 +96,14 @@ export class PortadorController {
   // Implementar validação de acesso baseado em role se necessário:
 
   @Get()
-  findAll() {
+  findAll(@Req() request: UserRequest) {
+    // Verificar se o usuário é admin
+    // Se não for admin, lançar uma exceção de permissão negada
+    if (request.user.role !== 'admin') {
+      throw new ForbiddenException(
+        'Apenas administradores podem acessar todos os portadores',
+      );
+    }
     return this.portadorService.findAll();
   }
 
@@ -102,6 +144,37 @@ export class PortadorController {
     return this.portadorService.findByUser(userId);
   }
 
+  @Post('portador-filtrado')
+  async findAllNewPortadores(
+    @Req() request: UserRequest,
+    @Body('startDate') startDate: Date,
+    @Body('endDate') endDate: Date,
+  ) {
+    console.log('startDate', startDate);
+    console.log('endDate', endDate);
+    // Verificar se o usuário é admin ou auditor
+    if (request.user.role !== 'admin' && request.user.role !== 'auditor') {
+      throw new ForbiddenException(
+        'Apenas administradores podem acessar todos os portadores',
+      );
+    }
+    // Verificar se as datas foram enviadas
+    if (!startDate || !endDate) {
+      throw new BadRequestException(
+        'As datas de início e fim são obrigatórias',
+      );
+    }
+    // Verificar se a data de início é anterior à data de fim
+    if (startDate >= endDate) {
+      throw new BadRequestException(
+        'A data de início deve ser anterior à data de fim',
+      );
+    }
+    // Chamar o serviço para buscar os portadores filtrados
+    // com base nas datas fornecidas
+    return this.portadorService.findAllNewPortadores(startDate, endDate);
+  }
+
   @Patch(':id')
   @UseInterceptors(
     FileFieldsInterceptor([
@@ -133,26 +206,29 @@ export class PortadorController {
 
   // Proteger rotas administrativas com verificação de role
   @Post(':id/aprovar')
-  async aprovar(
+  @UseGuards(JwtAuthGuard)
+  async aprovarDocumentos(
     @Param('id', ParseIntPipe) id: number,
     @Req() request: UserRequest,
   ) {
-    if (request.user.role !== 'admin') {
+    if (request.user.role !== 'admin' && request.user.role !== 'auditor') {
       throw new ForbiddenException(
         'Apenas administradores podem aprovar documentos',
       );
     }
 
-    return this.portadorService.aprovarDocumentos(id);
+    return this.portadorService.aprovarDocumentos(id, request.user.id);
   }
 
   @Post(':id/rejeitar')
-  async rejeitar(
+  @UseGuards(JwtAuthGuard)
+  async rejeitarDocumentos(
     @Param('id', ParseIntPipe) id: number,
     @Body('motivo') motivo: string,
     @Req() request: UserRequest,
   ) {
-    if (request.user.role !== 'admin') {
+    // Verificar se o usuário é admin
+    if (request.user.role !== 'admin' && request.user.role !== 'auditor') {
       throw new ForbiddenException(
         'Apenas administradores podem rejeitar documentos',
       );
