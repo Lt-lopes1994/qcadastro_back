@@ -12,10 +12,7 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./temp:/app/temp
-    depends_on:
-      db:
-        condition: service_healthy
-
+    
   db:
     image: mysql:8.0
     container_name: qcadastro_db
