@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import type { ProcessoJudicial } from './processo-judicial.entity';
 
 @Entity()
 export class RegisteredUser {
@@ -67,5 +68,5 @@ export class RegisteredUser {
 
   @UpdateDateColumn()
   updatedAt: Date;
-  processosFull: import('c:/Users/Bruno Mantovan Lopes/qcadastro_back/src/user/entity/processo-judicial.entity').ProcessoJudicial[];
+  processosFull: ProcessoJudicial[];
 }
