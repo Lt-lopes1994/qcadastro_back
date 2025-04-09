@@ -45,6 +45,7 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - ./nginx/logs:/var/log/nginx
       - ./nginx/ssl:/etc/nginx/ssl/
+      - ./uploads:/app/uploads
     depends_on:
       - app
     restart: always
