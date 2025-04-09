@@ -153,9 +153,9 @@ export class EmailService {
         <div style="text-align: center; margin-bottom: 20px;">
           <img src="https://qualityentregas.com.br/wp-content/uploads/2023/09/Ativo-2.png" alt="Quality Entregas Logo" style="max-width: 200px;">
         </div>
-        <h2 style="color: #F44336; text-align: center;">Documentos Precisam de Revisão</h2>
+        <h2 style="color: #F44336; text-align: center;">Infelizmente seu cadastro não foi aprovado!</h2>
         <p>Olá, <strong>${data.nome}</strong>!</p>
-        <p>Seus <strong>${data.tipoDocumento}</strong> foram analisados pela nossa equipe e precisam de algumas correções.</p>
+        <p>Infelizmente, seus <strong>${data.tipoDocumento}</strong> foram analisados e não atenderam aos critérios necessários para aprovação.</p>
         
         <div style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #F44336; margin: 20px 0;">
           <p style="margin: 0; font-size: 16px;"><strong>Motivo:</strong> ${data.motivo}</p>

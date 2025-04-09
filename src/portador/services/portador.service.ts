@@ -311,16 +311,18 @@ export class PortadorService {
   /**
    * Aprova os documentos de um portador
    */
-  async aprovarDocumentos(id: number): Promise<Portador> {
+  async aprovarDocumentos(id: number, aprovadorId: number): Promise<Portador> {
     const portador = await this.findOne(id);
     if (!portador) {
       throw new NotFoundException(`Portador com ID ${id} não encontrado`);
     }
 
-    // Atualizar o status para aprovado
+    // Atualizar o status para aprovado e incluir informações do aprovador
     portador.status = 'APROVADO';
     portador.updatedAt = new Date();
     portador.motivoRejeicao = '';
+    portador.aprovadorId = aprovadorId;
+    portador.dataAprovacao = new Date();
 
     const portadorAtualizado = await this.portadorRepository.save(portador);
 

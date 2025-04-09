@@ -211,14 +211,13 @@ export class PortadorController {
     @Param('id', ParseIntPipe) id: number,
     @Req() request: UserRequest,
   ) {
-    // Verificar se o usuário é admin
-    if (request.user.role !== 'admin') {
+    if (request.user.role !== 'admin' && request.user.role !== 'auditor') {
       throw new ForbiddenException(
         'Apenas administradores podem aprovar documentos',
       );
     }
 
-    return this.portadorService.aprovarDocumentos(id);
+    return this.portadorService.aprovarDocumentos(id, request.user.id);
   }
 
   @Post(':id/rejeitar')
@@ -229,7 +228,7 @@ export class PortadorController {
     @Req() request: UserRequest,
   ) {
     // Verificar se o usuário é admin
-    if (request.user.role !== 'admin') {
+    if (request.user.role !== 'admin' && request.user.role !== 'auditor') {
       throw new ForbiddenException(
         'Apenas administradores podem rejeitar documentos',
       );

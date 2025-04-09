@@ -102,6 +102,16 @@ export class Portador {
   @Column()
   userId: number;
 
+  @Column({ nullable: true })
+  aprovadorId: number;
+
+  @Column({ nullable: true })
+  dataAprovacao: Date;
+
+  @ManyToOne(() => RegisteredUser)
+  @JoinColumn({ name: 'aprovadorId' })
+  aprovador: RegisteredUser;
+
   @CreateDateColumn()
   createdAt: Date;
 
