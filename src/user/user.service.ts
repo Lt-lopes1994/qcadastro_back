@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
@@ -172,6 +174,22 @@ export class UserService {
     return true;
   }
 
+  async resendVerificationCode(
+    email: string,
+    phoneNumber: string,
+  ): Promise<void> {
+    const user = await this.findUserByEmail(email);
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado com este email');
+    }
+
+    // Enviar o código de verificação por email
+    await this.sendEmailVerificationCode(email);
+
+    // Enviar o código de verificação por SMS
+    await this.sendPhoneVerificationCode(phoneNumber);
+  }
+
   async login(
     cpf: string,
     password: string,
@@ -218,8 +236,6 @@ export class UserService {
 
     const savedProcessos: ProcessoJudicial[] = [];
     const processos = netrinData.processosCPF?.processos || [];
-
-    console.log(`Encontrados ${processos.length} processos para salvar`);
 
     if (processos.length > 0) {
       for (const processoData of processos) {
@@ -366,6 +382,106 @@ export class UserService {
   private generateVerificationCode(): string {
     // Gera um código numérico de 6 dígitos
     return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  async filterNewUsers(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<RegisteredUser[]> {
+    // Converter as datas para um formato consistente
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // Garantir que o final do dia seja incluído (23:59:59.999)
+    end.setHours(23, 59, 59, 999);
+
+    try {
+      // Verificar usuários existentes para debug
+      const allUsers = await this.userRepository.find();
+      console.log(`Total de usuários no sistema: ${allUsers.length}`);
+
+      // Usar between para simplificar a consulta de data
+      const users = await this.userRepository
+        .createQueryBuilder('user')
+        .where('DATE(user.createdAt) >= DATE(:startDate)', { startDate: start })
+        .andWhere('DATE(user.createdAt) <= DATE(:endDate)', { endDate: end })
+        .andWhere('user.role = :role', { role: 'user' })
+        .orderBy('user.createdAt', 'DESC')
+        .getMany();
+
+      return users;
+    } catch (error) {
+      console.error('Erro ao filtrar usuários por data:', error);
+      throw error;
+    }
+  }
+
+  async getAllUsers(): Promise<
+    (Partial<RegisteredUser> & { processosCount: number })[]
+  > {
+    try {
+      // Buscar todos os usuários
+      const users = await this.userRepository.find();
+
+      // Buscar a contagem de processos para cada usuário
+      const usersWithProcessosCount = await Promise.all(
+        users.map(async (user) => {
+          // Contar processos judiciais para este usuário
+          const processosCount = await this.processoRepository.count({
+            where: { userId: user.id },
+          });
+
+          // Remover campos sensíveis e adicionar contagem de processos
+          const {
+            password,
+            passwordResetToken,
+            emailVerificationCode,
+            phoneVerificationCode,
+            ...userData
+          } = user;
+
+          return {
+            ...userData,
+            processosCount,
+          };
+        }),
+      );
+
+      return usersWithProcessosCount;
+    } catch (error) {
+      console.error('Erro ao buscar todos os usuários:', error);
+      throw error;
+    }
+  }
+
+  async getUserById(userId: number): Promise<RegisteredUser | null> {
+    try {
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        throw new NotFoundException(`Usuário com ID ${userId} não encontrado`);
+      }
+
+      // Verificar se o usuário tem processos judiciais
+      const processosFull = await this.processoRepository.find({
+        where: { userId },
+      });
+      if (processosFull.length > 0) {
+        user.processosFull = processosFull;
+      } else {
+        user.processosFull = [];
+      }
+
+      // Remover campos sensíveis
+      const { password, ...userData } = user;
+
+      return userData as RegisteredUser;
+    } catch (error) {
+      console.error('Erro ao buscar usuário:', error);
+      throw error;
+    }
   }
 
   async fetchProcessosJudiciais(

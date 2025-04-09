@@ -20,7 +20,7 @@ async function createAdmin() {
     adminUser.cpf = '00000000000';
     adminUser.firstName = 'Admin';
     adminUser.lastName = 'System';
-    adminUser.cpfStatus = 'VERIFIED';
+    adminUser.cpfStatus = 'REGULAR';
     adminUser.cpfVerificationUrl = 'https://example.com';
     adminUser.email = 'admin@qualityentregas.com.br';
     adminUser.emailVerificationCode = '000000';

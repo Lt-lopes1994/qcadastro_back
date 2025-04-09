@@ -3,6 +3,7 @@ import {
   Column,
   PrimaryGeneratedColumn,
   CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 @Entity()
@@ -60,4 +61,11 @@ export class RegisteredUser {
 
   @CreateDateColumn()
   lgpdAcceptedAt: Date;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+  processosFull: import('c:/Users/Bruno Mantovan Lopes/qcadastro_back/src/user/entity/processo-judicial.entity').ProcessoJudicial[];
 }

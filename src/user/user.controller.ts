@@ -12,6 +12,7 @@ import {
   UseGuards,
   UploadedFile,
   UseInterceptors,
+  Get,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -153,6 +154,43 @@ export class UserController {
     };
 
     return this.userService.updateProfile(userId, data, foto);
+  }
+  @Post('new-users')
+  async filterNewUsers(
+    @Body('startDate') startDateStr: string,
+    @Body('endDate') endDateStr: string,
+  ) {
+    // Validar e converter as datas
+    const startDate = new Date(startDateStr);
+    const endDate = new Date(endDateStr);
+
+    // Verificar se são datas válidas
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      throw new BadRequestException('Datas inválidas');
+    }
+
+    // Se a data for futura, usar a data atual
+    const now = new Date();
+    if (startDate > now) {
+      console.log('Data inicial ajustada: do futuro para 30 dias atrás');
+      startDate.setDate(now.getDate() - 30);
+    }
+    if (endDate > now) {
+      console.log('Data final ajustada: do futuro para hoje');
+      endDate.setTime(now.getTime());
+    }
+
+    return this.userService.filterNewUsers(startDate, endDate);
+  }
+
+  @Get('users')
+  async getAllUsers() {
+    return this.userService.getAllUsers();
+  }
+
+  @Get('users/:id')
+  async getUserById(@Param('id') id: number) {
+    return this.userService.getUserById(id);
   }
 
   // Outros endpoints para verificar CPF, etc.

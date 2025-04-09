@@ -18,8 +18,7 @@ export class SmsService {
 
   async sendVerificationSms(phoneNumber: string, code: string): Promise<void> {
     try {
-      const url = `${this.apiUrl}?metodo=envio&usuario=${this.apiUser}&senha=${this.apiKey}&celular=${phoneNumber.replace(/\D/g, '')}&mensagem=Seu código de verificação QCadastro é: ${code}
-      Não compartilhe esse código com ninguém. Ele é exclusivo para você e tem validade de 30 minutos. Não responda a esse SMS.`;
+      const url = `${this.apiUrl}?metodo=envio&usuario=${this.apiUser}&senha=${this.apiKey}&celular=${phoneNumber.replace(/\D/g, '')}&mensagem=Seu código de verificação QCadastro é: ${code}. Use no após o primeiro login para validação.`;
 
       const response = await axios.get(url);
 
