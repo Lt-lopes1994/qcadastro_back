@@ -29,6 +29,8 @@ import { LoggerModule } from './logger/logger.module';
 import { SystemLog } from './logger/entities/system-log.entity';
 import { AdminModule } from './admin/admin.module';
 import { RolesGuard } from './security/guards/roles.guard';
+import { PesquisaNetrinModule } from './pesquisa-netrin/pesquisa-netrin.module';
+import { TutorModule } from './tutor/tutor.module';
 
 @Module({
   imports: [
@@ -83,6 +85,8 @@ import { RolesGuard } from './security/guards/roles.guard';
     ProcessosJudiciaisModule,
     LoggerModule,
     AdminModule,
+    PesquisaNetrinModule,
+    TutorModule,
   ],
   controllers: [AppController],
   providers: [
