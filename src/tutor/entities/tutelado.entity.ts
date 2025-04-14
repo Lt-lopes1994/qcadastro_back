@@ -4,9 +4,11 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
+  OneToOne,
 } from 'typeorm';
 import { RegisteredUser } from '../../user/entity/user.entity';
 import { Tutor } from './tutor.entity';
+import { Veiculo } from '../../cadastro-veiculo/entities/veiculo.entity';
 
 export enum TuteladoStatus {
   ATIVO = 'ATIVO',
@@ -23,6 +25,9 @@ export class Tutelado {
 
   @Column()
   tutorId: number;
+
+  @Column({ nullable: true })
+  veiculoDesignadoId: number;
 
   @Column({
     type: 'enum',
@@ -48,4 +53,8 @@ export class Tutelado {
   @ManyToOne(() => Tutor, (tutor) => tutor.tutelados)
   @JoinColumn({ name: 'tutorId' })
   tutor: Tutor;
+
+  @OneToOne(() => Veiculo)
+  @JoinColumn({ name: 'veiculoDesignadoId' })
+  veiculoDesignado: Veiculo;
 }

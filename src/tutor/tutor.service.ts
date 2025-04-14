@@ -13,16 +13,26 @@ import { Tutelado, TuteladoStatus } from './entities/tutelado.entity';
 import { CreateTutorDto, TipoUsuario } from './dto/create-tutor.dto';
 import { VincularTuteladoDto } from './dto/vincular-tutelado.dto';
 import { RegisteredUser } from '../user/entity/user.entity';
+import type { DesignarVeiculoDto } from './dto/designar-veiculo.dto';
+import { Veiculo } from 'src/cadastro-veiculo/entities/veiculo.entity';
+import { EmailService } from 'src/email/email.service';
+import { Empresa } from '../empresa/entities/empresa.entity';
+import { VincularEmpresaDto } from './dto/vincular-empresa.dto';
 
 @Injectable()
 export class TutorService {
   constructor(
     @InjectRepository(Tutor)
-    private tutorRepository: Repository<Tutor>,
+    private readonly tutorRepository: Repository<Tutor>,
     @InjectRepository(Tutelado)
-    private tuteladoRepository: Repository<Tutelado>,
+    private readonly tuteladoRepository: Repository<Tutelado>,
     @InjectRepository(RegisteredUser)
-    private userRepository: Repository<RegisteredUser>,
+    private readonly userRepository: Repository<RegisteredUser>,
+    @InjectRepository(Veiculo)
+    private readonly veiculoRepository: Repository<Veiculo>,
+    @InjectRepository(Empresa)
+    private readonly empresaRepository: Repository<Empresa>,
+    private readonly emailService: EmailService,
   ) {}
 
   async cadastrarUsuario(
@@ -231,5 +241,223 @@ export class TutorService {
     return await this.tutorRepository.find({
       relations: ['user', 'tutelados'],
     });
+  }
+
+  async designarVeiculo(
+    tutorId: number,
+    designarVeiculoDto: DesignarVeiculoDto,
+  ): Promise<Tutelado> {
+    // Verificar se o tutor existe
+    const tutor = await this.tutorRepository.findOne({
+      where: { id: tutorId },
+    });
+    if (!tutor) {
+      throw new NotFoundException(`Tutor com ID ${tutorId} não encontrado`);
+    }
+
+    // Verificar se o tutelado existe e está vinculado ao tutor
+    const tutelado = await this.tuteladoRepository.findOne({
+      where: { id: designarVeiculoDto.tuteladoId, tutorId },
+    });
+
+    if (!tutelado) {
+      throw new NotFoundException(
+        `Tutelado com ID ${designarVeiculoDto.tuteladoId} não encontrado ou não está vinculado a este tutor`,
+      );
+    }
+
+    // Verificar se o veículo existe e pertence ao tutor
+    const veiculo = await this.veiculoRepository.findOne({
+      where: { id: designarVeiculoDto.veiculoId, tutorId },
+    });
+
+    if (!veiculo) {
+      throw new NotFoundException(
+        `Veículo com ID ${designarVeiculoDto.veiculoId} não encontrado ou não pertence a este tutor`,
+      );
+    }
+
+    // Designar o veículo ao tutelado
+    tutelado.veiculoDesignadoId = designarVeiculoDto.veiculoId;
+
+    return await this.tuteladoRepository.save(tutelado);
+  }
+
+  async verificarCpf(cpf: string): Promise<boolean> {
+    // verifica se o CPF já está cadastrado
+    const result = await this.tutorRepository.query(
+      `
+      SELECT t.id
+      FROM tutores t
+      INNER JOIN registered_user ru ON t.userId = ru.id
+      WHERE ru.cpf = ?
+      LIMIT 1
+    `,
+      [cpf],
+    );
+
+    // Se o resultado for vazio, significa que o CPF não está cadastrado
+    if (!result || result.length === 0) {
+      return false;
+    }
+    // Se o resultado tiver algum registro, significa que o CPF já está cadastrado
+    return true;
+  }
+
+  async enviarEmailConvite(email: string, userId: number): Promise<void> {
+    try {
+      // Buscar informações do usuário que está enviando o convite (um tutelado)
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        throw new NotFoundException(`Usuário com ID ${userId} não encontrado`);
+      }
+
+      const userName = `${user.firstName} ${user.lastName}`;
+
+      // Conteúdo do email
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 5px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="https://qualityentregas.com.br/wp-content/uploads/2023/09/Ativo-2.png" alt="QProspekta Logo" style="max-width: 200px;">
+          </div>
+          <h2 style="color: #4CAF50; text-align: center;">Convite para se tornar Tutor</h2>
+          <p>Olá!</p>
+          <p>Você recebeu um convite de <strong>${userName}</strong> para se cadastrar como Tutor na plataforma QProspekta.</p>
+          
+          <div style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #4CAF50; margin: 20px 0;">
+            <p style="margin: 0; font-size: 16px;">Como Tutor, você poderá gerenciar veículos e vincular tutelados à sua conta.</p>
+          </div>
+          
+          <p>Para aceitar o convite, clique no botão abaixo e complete seu cadastro:</p>
+          
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="https://www.qprospekta.com/" style="background-color: #4CAF50; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">ACEITAR CONVITE</a>
+          </div>
+          
+          <p>Se você tiver alguma dúvida, entre em contato com nossa equipe de suporte.</p>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+            <p style="margin: 0;">Atenciosamente,</p>
+            <p style="margin: 5px 0;"><strong>Equipe QProspekta/</strong></p>
+          </div>
+        </div>
+      `;
+
+      const plainText = `
+        Convite para se tornar Tutor
+        
+        Olá!
+        
+        Você recebeu um convite de ${userName} para se cadastrar como Tutor na plataforma QProspekta.
+        
+        Como Tutor, você poderá gerenciar veículos e vincular tutelados à sua conta.
+        
+        Para aceitar o convite, acesse: https://www.qprospekta.com/
+        
+        Se você tiver alguma dúvida, entre em contato com nossa equipe de suporte.
+        
+        Atenciosamente,
+        Equipe QProspekta
+      `;
+
+      // Criamos um objeto similar ao usado em sendVerificationEmail
+      await this.emailService.sendTutorInviteEmail(email, {
+        userName,
+        htmlContent,
+        plainText,
+      });
+    } catch (error) {
+      console.error('Erro ao enviar email de convite:', error);
+      throw new Error('Falha ao enviar email de convite');
+    }
+  }
+
+  async vincularEmpresa(
+    tutorId: number,
+    vincularEmpresaDto: VincularEmpresaDto,
+    isUserId = false,
+  ): Promise<Tutor> {
+    try {
+      // Log para diagnóstico
+      console.log('Requisição recebida:', {
+        tutorId,
+        vincularEmpresaDto,
+        isUserId,
+      });
+
+      if (!vincularEmpresaDto || vincularEmpresaDto.empresaId === undefined) {
+        throw new BadRequestException('ID da empresa não foi fornecido');
+      }
+
+      // Buscar o tutor
+      let tutor: Tutor | null;
+
+      if (isUserId) {
+        tutor = await this.tutorRepository.findOne({
+          where: { userId: tutorId },
+        });
+      } else {
+        tutor = await this.tutorRepository.findOne({
+          where: { id: tutorId },
+        });
+      }
+
+      if (!tutor) {
+        const mensagem = isUserId
+          ? `Usuário com ID ${tutorId} não é um tutor`
+          : `Tutor com ID ${tutorId} não encontrado`;
+        throw new NotFoundException(mensagem);
+      }
+
+      // Verificar se a empresa existe
+      const empresa = await this.empresaRepository.findOne({
+        where: { id: vincularEmpresaDto.empresaId },
+      });
+
+      if (!empresa) {
+        throw new NotFoundException(
+          `Empresa com ID ${vincularEmpresaDto.empresaId} não encontrada`,
+        );
+      }
+
+      // Atualizar o tutor diretamente em vez de usar o update
+      tutor.empresaId = vincularEmpresaDto.empresaId;
+      const tutorAtualizado = await this.tutorRepository.save(tutor);
+
+      // Carregar a relação com a empresa para a resposta
+      const tutorComEmpresa = await this.tutorRepository.findOne({
+        where: { id: tutorAtualizado.id },
+        relations: ['empresa'],
+      });
+
+      if (!tutorComEmpresa) {
+        throw new NotFoundException(
+          `Não foi possível encontrar o tutor após atualização`,
+        );
+      }
+
+      return tutorComEmpresa;
+    } catch (error) {
+      console.error('ERRO AO VINCULAR EMPRESA:', error);
+      throw error;
+    }
+  }
+
+  async assinarContrato(tutorId: number): Promise<Tutor> {
+    const tutor = await this.tutorRepository.findOne({
+      where: { id: tutorId },
+    });
+
+    if (!tutor) {
+      throw new NotFoundException(`Tutor com ID ${tutorId} não encontrado`);
+    }
+
+    tutor.assinadoContrato = true;
+    tutor.dataAssinaturaContrato = new Date();
+
+    return await this.tutorRepository.save(tutor);
   }
 }

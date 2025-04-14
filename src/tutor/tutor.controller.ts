@@ -1,22 +1,23 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Param,
+  Controller,
   Delete,
-  UseGuards,
-  Req,
   ForbiddenException,
+  Get,
+  Param,
   ParseIntPipe,
-  Patch,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { TutorService } from './tutor.service';
-import { CreateTutorDto } from './dto/create-tutor.dto';
-import { VincularTuteladoDto } from './dto/vincular-tutelado.dto';
 import { JwtAuthGuard } from '../security/guards/jwt-auth.guard';
 import { UserRequest } from '../user/interfaces/user-request.interface';
+import { CreateTutorDto } from './dto/create-tutor.dto';
+import type { DesignarVeiculoDto } from './dto/designar-veiculo.dto';
+import type { VincularEmpresaDto } from './dto/vincular-empresa.dto';
+import { VincularTuteladoDto } from './dto/vincular-tutelado.dto';
+import { TutorService } from './tutor.service';
 
 @Controller('tutores')
 @UseGuards(JwtAuthGuard)
@@ -47,6 +48,48 @@ export class TutorController {
     }
 
     return this.tutorService.vincularTutelado(tutorId, vincularDto);
+  }
+
+  @Post(':id/designar-veiculo')
+  async designarVeiculo(
+    @Param('id', ParseIntPipe) tutorId: number,
+    @Body() designarVeiculoDto: DesignarVeiculoDto,
+    @Req() request: UserRequest,
+  ) {
+    // Verificar se o usuário tem permissão (é o próprio tutor ou admin)
+    if (request.user.role !== 'admin') {
+      try {
+        const tutor = await this.tutorService.findTutorByUserId(
+          request.user.id,
+        );
+        if (tutor.id !== tutorId) {
+          throw new ForbiddenException(
+            'Você não tem permissão para realizar esta operação',
+          );
+        }
+      } catch (error) {
+        throw new ForbiddenException(
+          'Você não tem permissão para realizar esta operação',
+        );
+      }
+    }
+
+    return this.tutorService.designarVeiculo(tutorId, designarVeiculoDto);
+  }
+
+  @Post('enviar-convite')
+  async enviarConvite(
+    @Body('email') emailDestino: string,
+    @Req() request: UserRequest,
+  ) {
+    const userId = request.user.id;
+    await this.tutorService.enviarEmailConvite(emailDestino, userId);
+
+    return {
+      success: true,
+      message: 'Convite enviado com sucesso',
+      email: emailDestino,
+    };
   }
 
   @Delete(':tutorId/tutelados/:tuteladoId')
@@ -114,5 +157,94 @@ export class TutorController {
     }
 
     return this.tutorService.listarTodosTutores();
+  }
+
+  @Get('verificar/:cpf')
+  async verificarCpf(@Param('cpf') cpf: string) {
+    return this.tutorService.verificarCpf(cpf);
+  }
+
+  @Post(':id/vincular-empresa')
+  async vincularEmpresa(
+    @Param('id', ParseIntPipe) tutorId: number,
+    @Body() vincularEmpresaDto: VincularEmpresaDto,
+    @Req() request: UserRequest,
+  ) {
+    // Verificar se o usuário tem permissão (é o próprio tutor ou admin)
+    if (request.user.role !== 'admin') {
+      try {
+        const tutor = await this.tutorService.findTutorByUserId(
+          request.user.id,
+        );
+        if (tutor.id !== tutorId) {
+          throw new ForbiddenException(
+            'Você não tem permissão para realizar esta operação',
+          );
+        }
+      } catch (error) {
+        throw new ForbiddenException(
+          'Você não tem permissão para realizar esta operação',
+        );
+      }
+    }
+
+    return this.tutorService.vincularEmpresa(tutorId, vincularEmpresaDto);
+  }
+
+  @Post('vincular-minha-empresa')
+  async vincularMinhaEmpresa(
+    @Body() vincularEmpresaDto: VincularEmpresaDto,
+    @Req() request: UserRequest,
+  ) {
+    try {
+      console.log(
+        'Recebendo requisição para vincular empresa:',
+        vincularEmpresaDto,
+      );
+      const userId = request.user.id;
+      console.log('UserID do requisitante:', userId);
+
+      const resultado = await this.tutorService.vincularEmpresa(
+        userId,
+        vincularEmpresaDto,
+        true,
+      );
+      console.log('Resultado da operação:', resultado);
+
+      return {
+        success: true,
+        message: 'Empresa vinculada com sucesso',
+        data: resultado,
+      };
+    } catch (error) {
+      console.error('Erro ao vincular empresa:', error);
+      throw error;
+    }
+  }
+
+  @Post(':id/assinar-contrato')
+  async assinarContrato(
+    @Param('id', ParseIntPipe) tutorId: number,
+    @Req() request: UserRequest,
+  ) {
+    // Verificar se o usuário tem permissão (é o próprio tutor ou admin)
+    if (request.user.role !== 'admin') {
+      try {
+        const tutor = await this.tutorService.findTutorByUserId(
+          request.user.id,
+        );
+        if (tutor.id !== tutorId) {
+          throw new ForbiddenException(
+            'Você não tem permissão para realizar esta operação',
+          );
+        }
+      } catch (error) {
+        throw new ForbiddenException(
+          'Você não tem permissão para realizar esta operação',
+        );
+      }
+    }
+
+    return this.tutorService.assinarContrato(tutorId);
   }
 }

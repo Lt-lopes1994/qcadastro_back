@@ -24,12 +24,14 @@
     "migration:generate": "npm run typeorm -- migration:generate -d src/database/datasource.ts src/migrations/Migration",
     "migration:run": "npm run typeorm -- migration:run -d src/database/datasource.ts",
     "migration:revert": "npm run typeorm -- migration:revert",
+    "migration:generate-and-run": "./generate-migration.sh",
     "db:reset:script": "ts-node -r tsconfig-paths/register src/scripts/reset-database.ts",
     "create:admin": "ts-node -r tsconfig-paths/register src/scripts/create-admin.ts",
     "schema:export": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js schema:log -d src/database/datasource.ts -o schema.sql",
     "export:schema": "ts-node -r tsconfig-paths/register src/scripts/export-schema.ts",
     "create:dump": "ts-node -r tsconfig-paths/register src/scripts/create-dump.ts",
-    "script:create-roles": "ts-node -r tsconfig-paths/register src/scripts/create-roles.ts"
+    "script:create-roles": "ts-node -r tsconfig-paths/register src/scripts/create-roles.ts",
+    "script:generate-users": "ts-node -r tsconfig-paths/register src/scripts/create-test-users.ts"
   },
   "dependencies": {
     "@faker-js/faker": "^9.6.0",

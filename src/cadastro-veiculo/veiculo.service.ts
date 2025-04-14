@@ -18,9 +18,11 @@ export class VeiculoService {
     private portadorRepository: Repository<Portador>,
   ) {}
 
+  // Modificar o método create para aceitar tutorId
   async create(
     createVeiculoDto: CreateVeiculoDto,
     userId: number,
+    tutorId?: number,
   ): Promise<Veiculo> {
     // Verificar se o portador existe e pertence ao usuário
     const portadores = await this.portadorRepository.find({
@@ -70,6 +72,11 @@ export class VeiculoService {
     veiculo.portadorId = portadores[0].id;
     veiculo.userId = userId;
 
+    // Se fornecido tutorId, adicionar ao veículo
+    if (tutorId) {
+      veiculo.tutorId = tutorId;
+    }
+
     return this.veiculoRepository.save(veiculo);
   }
 
@@ -83,6 +90,11 @@ export class VeiculoService {
 
   async findByPortador(portadorId: number): Promise<Veiculo[]> {
     return this.veiculoRepository.find({ where: { portadorId } });
+  }
+
+  // Adicionar método para buscar veículos por tutor
+  async findByTutor(tutorId: number): Promise<Veiculo[]> {
+    return this.veiculoRepository.find({ where: { tutorId } });
   }
 
   async findOne(id: number): Promise<Veiculo> {

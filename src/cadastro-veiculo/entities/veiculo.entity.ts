@@ -8,6 +8,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { Portador } from '../../portador/entities/portador.entity';
+import { Tutor } from '../../tutor/entities/tutor.entity';
 
 @Entity()
 export class Veiculo {
@@ -77,6 +78,13 @@ export class Veiculo {
 
   @Column()
   userId: number;
+
+  @Column({ nullable: true })
+  tutorId: number;
+
+  @ManyToOne(() => Tutor)
+  @JoinColumn({ name: 'tutorId' })
+  tutor: Tutor;
 
   @CreateDateColumn()
   createdAt: Date;
