@@ -164,45 +164,45 @@ export class TutorController {
     return this.tutorService.verificarCpf(cpf);
   }
 
-  @Post(':id/vincular-empresa')
-  async vincularEmpresa(
-    @Param('id', ParseIntPipe) tutorId: number,
-    @Body() vincularEmpresaDto: VincularEmpresaDto,
-    @Req() request: UserRequest,
-  ) {
-    // Verificar se o usuário tem permissão (é o próprio tutor ou admin)
-    if (request.user.role !== 'admin') {
-      try {
-        const tutor = await this.tutorService.findTutorByUserId(
-          request.user.id,
-        );
-        if (tutor.id !== tutorId) {
-          throw new ForbiddenException(
-            'Você não tem permissão para realizar esta operação',
-          );
-        }
-      } catch (error) {
-        throw new ForbiddenException(
-          'Você não tem permissão para realizar esta operação',
-        );
-      }
-    }
+  // @Post(':id/vincular-empresa')
+  // async vincularEmpresa(
+  //   @Param('id', ParseIntPipe) tutorId: number,
+  //   @Body('idEmpresa') idEmpresa: number,
+  //   @Req() request: UserRequest,
+  // ) {
+  //   // Verificar se o usuário tem permissão (é o próprio tutor ou admin)
+  //   if (request.user.role !== 'admin') {
+  //     try {
+  //       const tutor = await this.tutorService.findTutorByUserId(
+  //         request.user.id,
+  //       );
+  //       if (tutor.id !== tutorId) {
+  //         throw new ForbiddenException(
+  //           'Você não tem permissão para realizar esta operação',
+  //         );
+  //       }
+  //     } catch (error) {
+  //       throw new ForbiddenException(
+  //         'Você não tem permissão para realizar esta operação',
+  //       );
+  //     }
+  //   }
 
-    return this.tutorService.vincularEmpresa(tutorId, vincularEmpresaDto);
-  }
+  //   return this.tutorService.vincularEmpresa(tutorId, idEmpresa);
+  // }
 
   @Post('vincular-minha-empresa')
   async vincularMinhaEmpresa(
-    @Body() vincularEmpresaDto: VincularEmpresaDto,
+    @Body('empresaId') idEmpresa: number,
     @Req() request: UserRequest,
   ) {
     try {
-      console.log(
-        'Recebendo requisição para vincular empresa:',
-        vincularEmpresaDto,
-      );
+      console.log('Recebendo requisição para vincular empresa:', idEmpresa);
       const userId = request.user.id;
       console.log('UserID do requisitante:', userId);
+
+      // Criar o objeto VincularEmpresaDto corretamente
+      const vincularEmpresaDto: VincularEmpresaDto = { empresaId: idEmpresa };
 
       const resultado = await this.tutorService.vincularEmpresa(
         userId,

@@ -283,25 +283,113 @@ export class TutorService {
     return await this.tuteladoRepository.save(tutelado);
   }
 
-  async verificarCpf(cpf: string): Promise<boolean> {
-    // verifica se o CPF já está cadastrado
+  async verificarCpf(cpf: string): Promise<{
+    encontrado: boolean;
+    dados?: { tutor: any; usuario: any; empresa: any };
+  }> {
+    // Verifica se o CPF já está cadastrado no campo JSON scoreCredito
     const result = await this.tutorRepository.query(
-      `
-      SELECT t.id
-      FROM tutores t
-      INNER JOIN registered_user ru ON t.userId = ru.id
-      WHERE ru.cpf = ?
-      LIMIT 1
-    `,
+      `SELECT
+          t.*,
+          rs.*,
+          e.*
+        FROM
+          tutores t
+        JOIN
+          registered_user rs ON t.userId = rs.id
+        LEFT JOIN
+          empresa e ON t.empresaId = e.id
+        WHERE
+          JSON_UNQUOTE(JSON_EXTRACT(t.scoreCredito, '$.cpf')) = ?
+        LIMIT
+          1; `,
       [cpf],
     );
 
+    console.log('Resultado da verificação de CPF:', result);
+
     // Se o resultado for vazio, significa que o CPF não está cadastrado
     if (!result || result.length === 0) {
-      return false;
+      return { encontrado: false };
     }
-    // Se o resultado tiver algum registro, significa que o CPF já está cadastrado
-    return true;
+
+    // Se encontrou, vamos organizar os dados por entidade e remover campos sensíveis
+    const dadosBrutos = result[0];
+
+    // Dados do tutor
+    const tutor = {
+      id: dadosBrutos.id,
+      userId: dadosBrutos.userId,
+      scoreCredito: dadosBrutos.scoreCredito,
+      status: dadosBrutos.status,
+      scoreD00: dadosBrutos.scoreD00,
+      scoreD30: dadosBrutos.scoreD30,
+      scoreD60: dadosBrutos.scoreD60,
+      rendaIndividual: dadosBrutos.rendaIndividual,
+      rendaFamiliar: dadosBrutos.rendaFamiliar,
+      rendaPresumida: dadosBrutos.rendaPresumida,
+      classeSocialPessoal: dadosBrutos.classeSocialPessoal,
+      classeSocialFamiliar: dadosBrutos.classeSocialFamiliar,
+      scoreValido: dadosBrutos.scoreValido,
+      createdAt: dadosBrutos.createdAt,
+      updatedAt: dadosBrutos.updatedAt,
+      assinadoContrato: dadosBrutos.assinadoContrato,
+      dataAssinaturaContrato: dadosBrutos.dataAssinaturaContrato,
+      empresaId: dadosBrutos.empresaId,
+    };
+
+    // Dados do usuário (excluindo campos sensíveis)
+    const usuario = {
+      id: dadosBrutos.userId,
+      firstName: dadosBrutos.firstName,
+      lastName: dadosBrutos.lastName,
+      cpf: dadosBrutos.cpf,
+      cpfStatus: dadosBrutos.cpfStatus,
+      email: dadosBrutos.email,
+      emailVerified: dadosBrutos.emailVerified,
+      phoneNumber: dadosBrutos.phoneNumber,
+      phoneVerified: dadosBrutos.phoneVerified,
+      role: dadosBrutos.role,
+      isActive: dadosBrutos.isActive,
+      fotoPath: dadosBrutos.fotoPath,
+      lgpdAcceptedAt: dadosBrutos.lgpdAcceptedAt,
+      // Removidos dados sensíveis: password, passwordResetToken, emailVerificationCode, phoneVerificationCode
+    };
+
+    // Dados da empresa
+    const empresa = dadosBrutos.empresaId
+      ? {
+          id: dadosBrutos.empresaId,
+          cnpj: dadosBrutos.cnpj,
+          razaoSocial: dadosBrutos.razaoSocial,
+          nomeFantasia: dadosBrutos.nomeFantasia,
+          naturezaJuridica: dadosBrutos.naturezaJuridica,
+          logradouro: dadosBrutos.logradouro,
+          numero: dadosBrutos.numero,
+          complemento: dadosBrutos.complemento,
+          bairro: dadosBrutos.bairro,
+          municipio: dadosBrutos.municipio,
+          cep: dadosBrutos.cep,
+          uf: dadosBrutos.uf,
+          telefone: dadosBrutos.telefone,
+          situacaoCadastral: dadosBrutos.situacaoCadastral,
+          dataInicioAtividade: dadosBrutos.dataInicioAtividade,
+          atividadeEconomica: dadosBrutos.atividadeEconomica,
+          porte: dadosBrutos.porte,
+          capitalSocial: dadosBrutos.capitalSocial,
+          urlComprovante: dadosBrutos.urlComprovante,
+          logoPath: dadosBrutos.logoPath,
+        }
+      : null;
+
+    return {
+      encontrado: true,
+      dados: {
+        tutor,
+        usuario,
+        empresa,
+      },
+    };
   }
 
   async enviarEmailConvite(email: string, userId: number): Promise<void> {
@@ -435,7 +523,7 @@ export class TutorService {
 
       if (!tutorComEmpresa) {
         throw new NotFoundException(
-          `Não foi possível encontrar o tutor após atualização`,
+          `Tutor com ID ${tutorAtualizado.id} não encontrado ao carregar relações`,
         );
       }
 
