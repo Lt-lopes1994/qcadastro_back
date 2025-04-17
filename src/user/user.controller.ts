@@ -1,7 +1,4 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   BadRequestException,
   Body,
@@ -24,13 +21,26 @@ import { RegisteredUser } from './entity/user.entity';
 import { UserRequest } from './interfaces/user-request.interface';
 import { UserService } from './user.service';
 import { CreateEnderecoDto } from '../portador/dto/create-endereco.dto';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiBearerAuth,
+  ApiConsumes,
+} from '@nestjs/swagger';
 
+@ApiTags('users')
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Public()
   @Post('register')
+  @ApiOperation({ summary: 'Registrar novo usuário' })
+  @ApiBody({ type: RegisteredUser })
+  @ApiResponse({ status: 201, description: 'Usuário registrado com sucesso' })
+  @ApiResponse({ status: 400, description: 'Dados inválidos' })
   async register(
     @Body() userData: Partial<RegisteredUser>,
   ): Promise<RegisteredUser> {
@@ -123,6 +133,19 @@ export class UserController {
   }
 
   @Post('complete-registration')
+  @ApiOperation({ summary: 'Completar registro do usuário' })
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        nome: { type: 'string' },
+        endereco: { type: 'object' },
+        foto: { type: 'string', format: 'binary' },
+      },
+    },
+  })
   @UseInterceptors(FileInterceptor('foto'))
   async completeRegistration(
     @Body() body: { nome: string; endereco: CreateEnderecoDto },

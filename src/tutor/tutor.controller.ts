@@ -1,29 +1,46 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Param,
+  Controller,
   Delete,
-  UseGuards,
-  Req,
   ForbiddenException,
+  Get,
+  Param,
   ParseIntPipe,
-  Patch,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { TutorService } from './tutor.service';
-import { CreateTutorDto } from './dto/create-tutor.dto';
-import { VincularTuteladoDto } from './dto/vincular-tutelado.dto';
+import {
+  ApiBearerAuth,
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiParam,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../security/guards/jwt-auth.guard';
 import { UserRequest } from '../user/interfaces/user-request.interface';
+import { CreateTutorDto } from './dto/create-tutor.dto';
+import type { DesignarVeiculoDto } from './dto/designar-veiculo.dto';
+import type { VincularEmpresaDto } from './dto/vincular-empresa.dto';
+import { VincularTuteladoDto } from './dto/vincular-tutelado.dto';
+import { TutorService } from './tutor.service';
+import { SolicitacaoVinculoDto } from './dto/solicitacao-vinculo.dto';
+import { RespostaSolicitacaoDto } from './dto/resposta-solicitacao.dto';
 
+@ApiTags('tutores')
+@ApiBearerAuth()
 @Controller('tutores')
 @UseGuards(JwtAuthGuard)
 export class TutorController {
   constructor(private readonly tutorService: TutorService) {}
 
   @Post()
+  @ApiOperation({ summary: 'Criar novo tutor' })
+  @ApiResponse({ status: 201, description: 'Tutor criado com sucesso' })
+  @ApiResponse({ status: 400, description: 'Dados inválidos' })
+  @ApiBody({ type: CreateTutorDto })
   async cadastrar(
     @Body() createTutorDto: CreateTutorDto,
     @Req() request: UserRequest,
@@ -49,7 +66,64 @@ export class TutorController {
     return this.tutorService.vincularTutelado(tutorId, vincularDto);
   }
 
+  @Post(':id/designar-veiculo')
+  async designarVeiculo(
+    @Param('id', ParseIntPipe) tutorId: number,
+    @Body() designarVeiculoDto: DesignarVeiculoDto,
+    @Req() request: UserRequest,
+  ) {
+    // Verificar se o usuário tem permissão (é o próprio tutor ou admin)
+    if (request.user.role !== 'admin') {
+      try {
+        const tutor = await this.tutorService.findTutorByUserId(
+          request.user.id,
+        );
+        if (tutor.id !== tutorId) {
+          throw new ForbiddenException(
+            'Você não tem permissão para realizar esta operação',
+          );
+        }
+      } catch (error) {
+        throw new ForbiddenException(
+          'Você não tem permissão para realizar esta operação',
+        );
+      }
+    }
+
+    return this.tutorService.designarVeiculo(tutorId, designarVeiculoDto);
+  }
+
+  @Post('enviar-convite')
+  @ApiOperation({ summary: 'Enviar convite para novo tutor' })
+  @ApiResponse({ status: 200, description: 'Convite enviado com sucesso' })
+  @ApiResponse({ status: 400, description: 'Erro ao enviar convite' })
+  async enviarConvite(
+    @Body('email') emailDestino: string,
+    @Req() request: UserRequest,
+  ) {
+    const userId = request.user.id;
+    await this.tutorService.enviarEmailConvite(emailDestino, userId);
+
+    return {
+      success: true,
+      message: 'Convite enviado com sucesso',
+      email: emailDestino,
+    };
+  }
+
   @Delete(':tutorId/tutelados/:tuteladoId')
+  @ApiOperation({ summary: 'Desvincular tutelado do tutor' })
+  @ApiParam({ name: 'tutorId', description: 'ID do tutor' })
+  @ApiParam({
+    name: 'tuteladoId',
+    description: 'ID do tutelado a ser desvinculado',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Tutelado desvinculado com sucesso',
+  })
+  @ApiResponse({ status: 403, description: 'Permissão negada' })
+  @ApiResponse({ status: 404, description: 'Tutor ou tutelado não encontrado' })
   async desvincularTutelado(
     @Param('tutorId', ParseIntPipe) tutorId: number,
     @Param('tuteladoId', ParseIntPipe) tuteladoId: number,
@@ -69,6 +143,9 @@ export class TutorController {
   }
 
   @Get('perfil')
+  @ApiOperation({ summary: 'Obter perfil do tutor atual' })
+  @ApiResponse({ status: 200, description: 'Perfil do tutor' })
+  @ApiResponse({ status: 404, description: 'Perfil não encontrado' })
   async perfilTutor(@Req() request: UserRequest) {
     return this.tutorService.findTutorByUserId(request.user.id);
   }
@@ -114,5 +191,169 @@ export class TutorController {
     }
 
     return this.tutorService.listarTodosTutores();
+  }
+
+  @Get('verificar/:cpf')
+  async verificarCpf(@Param('cpf') cpf: string) {
+    return this.tutorService.verificarCpf(cpf);
+  }
+
+  // @Post(':id/vincular-empresa')
+  // async vincularEmpresa(
+  //   @Param('id', ParseIntPipe) tutorId: number,
+  //   @Body('idEmpresa') idEmpresa: number,
+  //   @Req() request: UserRequest,
+  // ) {
+  //   // Verificar se o usuário tem permissão (é o próprio tutor ou admin)
+  //   if (request.user.role !== 'admin') {
+  //     try {
+  //       const tutor = await this.tutorService.findTutorByUserId(
+  //         request.user.id,
+  //       );
+  //       if (tutor.id !== tutorId) {
+  //         throw new ForbiddenException(
+  //           'Você não tem permissão para realizar esta operação',
+  //         );
+  //       }
+  //     } catch (error) {
+  //       throw new ForbiddenException(
+  //         'Você não tem permissão para realizar esta operação',
+  //       );
+  //     }
+  //   }
+
+  //   return this.tutorService.vincularEmpresa(tutorId, idEmpresa);
+  // }
+
+  @Post('vincular-minha-empresa')
+  @ApiOperation({ summary: 'Vincular tutor à empresa' })
+  @ApiResponse({ status: 200, description: 'Empresa vinculada com sucesso' })
+  @ApiBody({ schema: { properties: { empresaId: { type: 'number' } } } })
+  async vincularMinhaEmpresa(
+    @Body('empresaId') idEmpresa: number,
+    @Req() request: UserRequest,
+  ) {
+    try {
+      console.log('Recebendo requisição para vincular empresa:', idEmpresa);
+      const userId = request.user.id;
+      console.log('UserID do requisitante:', userId);
+
+      // Criar o objeto VincularEmpresaDto corretamente
+      const vincularEmpresaDto: VincularEmpresaDto = { empresaId: idEmpresa };
+
+      const resultado = await this.tutorService.vincularEmpresa(
+        userId,
+        vincularEmpresaDto,
+        true,
+      );
+      console.log('Resultado da operação:', resultado);
+
+      return {
+        success: true,
+        message: 'Empresa vinculada com sucesso',
+        data: resultado,
+      };
+    } catch (error) {
+      console.error('Erro ao vincular empresa:', error);
+      throw error;
+    }
+  }
+
+  @Post(':id/assinar-contrato')
+  @ApiOperation({ summary: 'Assinar contrato do tutor' })
+  @ApiParam({ name: 'id', description: 'ID do tutor' })
+  @ApiResponse({ status: 200, description: 'Contrato assinado com sucesso' })
+  async assinarContrato(
+    @Param('id', ParseIntPipe) tutorId: number,
+    @Req() request: UserRequest,
+  ) {
+    // Verificar se o usuário tem permissão (é o próprio tutor ou admin)
+    if (request.user.role !== 'admin') {
+      try {
+        const tutor = await this.tutorService.findTutorByUserId(
+          request.user.id,
+        );
+        if (tutor.id !== tutorId) {
+          throw new ForbiddenException(
+            'Você não tem permissão para realizar esta operação',
+          );
+        }
+      } catch (error) {
+        throw new ForbiddenException(
+          'Você não tem permissão para realizar esta operação',
+        );
+      }
+    }
+
+    return this.tutorService.assinarContrato(tutorId);
+  }
+
+  @Post('solicitar-vinculo')
+  @ApiOperation({ summary: 'Solicitar vínculo com tutor' })
+  @ApiResponse({ status: 200, description: 'Solicitação enviada com sucesso' })
+  @ApiBody({ type: SolicitacaoVinculoDto })
+  async solicitarVinculo(
+    @Body() solicitacaoDto: SolicitacaoVinculoDto,
+    @Req() request: UserRequest,
+  ) {
+    try {
+      const userId = request.user.id;
+      const resultado = await this.tutorService.solicitarVinculoTutor(
+        userId,
+        solicitacaoDto,
+      );
+
+      return {
+        success: true,
+        message:
+          'Solicitação enviada com sucesso. Aguarde a aprovação do tutor.',
+        data: resultado,
+      };
+    } catch (error) {
+      console.error('Erro ao solicitar vínculo:', error);
+      throw error;
+    }
+  }
+
+  @Get('solicitacoes-pendentes')
+  @ApiOperation({ summary: 'Listar solicitações de vínculo pendentes' })
+  @ApiResponse({ status: 200, description: 'Lista de solicitações pendentes' })
+  async listarSolicitacoesPendentes(@Req() request: UserRequest) {
+    const userId = request.user.id;
+    return this.tutorService.listarSolicitacoesPendentes(userId);
+  }
+
+  @Post('solicitacoes/:id/responder')
+  @ApiOperation({ summary: 'Responder solicitação de vínculo' })
+  @ApiParam({ name: 'id', description: 'ID da solicitação' })
+  @ApiBody({ type: RespostaSolicitacaoDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Solicitação respondida com sucesso',
+  })
+  async responderSolicitacao(
+    @Param('id', ParseIntPipe) solicitacaoId: number,
+    @Body() respostaDto: RespostaSolicitacaoDto,
+    @Req() request: UserRequest,
+  ) {
+    try {
+      const userId = request.user.id;
+      const resultado = await this.tutorService.responderSolicitacaoVinculo(
+        userId,
+        solicitacaoId,
+        respostaDto,
+      );
+
+      return {
+        success: true,
+        message: respostaDto.aprovado
+          ? 'Solicitação aprovada com sucesso. O tutelado foi vinculado.'
+          : 'Solicitação rejeitada com sucesso.',
+        data: resultado,
+      };
+    } catch (error) {
+      console.error('Erro ao responder solicitação:', error);
+      throw error;
+    }
   }
 }

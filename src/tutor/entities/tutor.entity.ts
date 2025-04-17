@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { RegisteredUser } from '../../user/entity/user.entity';
 import { Tutelado } from './tutelado.entity';
+import { Empresa } from '../../empresa/entities/empresa.entity';
 
 export enum TutorStatus {
   PENDENTE = 'PENDENTE',
@@ -59,6 +60,19 @@ export class Tutor {
 
   @Column({ type: 'boolean', default: false })
   scoreValido: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  assinadoContrato: boolean;
+
+  @Column({ nullable: true })
+  dataAssinaturaContrato: Date;
+
+  @Column({ nullable: true })
+  empresaId: number;
+
+  @ManyToOne(() => Empresa, { nullable: true })
+  @JoinColumn({ name: 'empresaId' })
+  empresa: Empresa;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
