@@ -18,6 +18,10 @@ import { Veiculo } from 'src/cadastro-veiculo/entities/veiculo.entity';
 import { EmailService } from 'src/email/email.service';
 import { Empresa } from '../empresa/entities/empresa.entity';
 import { VincularEmpresaDto } from './dto/vincular-empresa.dto';
+import { SolicitacaoVinculo } from './entities/solicitacao-vinculo.entity';
+import { SolicitacaoVinculoDto } from './dto/solicitacao-vinculo.dto';
+import { RespostaSolicitacaoDto } from './dto/resposta-solicitacao.dto';
+import { StatusSolicitacao } from './entities/status-solicitacao.enum';
 
 @Injectable()
 export class TutorService {
@@ -32,6 +36,8 @@ export class TutorService {
     private readonly veiculoRepository: Repository<Veiculo>,
     @InjectRepository(Empresa)
     private readonly empresaRepository: Repository<Empresa>,
+    @InjectRepository(SolicitacaoVinculo)
+    private readonly solicitacaoRepository: Repository<SolicitacaoVinculo>,
     private readonly emailService: EmailService,
   ) {}
 
@@ -547,5 +553,213 @@ export class TutorService {
     tutor.dataAssinaturaContrato = new Date();
 
     return await this.tutorRepository.save(tutor);
+  }
+
+  async solicitarVinculoTutor(
+    tuteladoUserId: number,
+    solicitacaoDto: SolicitacaoVinculoDto,
+  ): Promise<SolicitacaoVinculo> {
+    // Verificar se o usuário já existe como tutelado
+    let tutelado: Tutelado;
+    try {
+      tutelado = await this.findTuteladoByUserId(tuteladoUserId);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        // Usuário não é tutelado ainda, vamos cadastrá-lo
+        console.log('Usuário não é tutelado, criando registro...');
+
+        // Verificar se o usuário existe
+        const user = await this.userRepository.findOne({
+          where: { id: tuteladoUserId },
+        });
+        if (!user) {
+          throw new NotFoundException(
+            `Usuário com ID ${tuteladoUserId} não encontrado`,
+          );
+        }
+
+        // Criar novo tutelado
+        const novoTutelado = new Tutelado();
+        novoTutelado.userId = tuteladoUserId;
+        novoTutelado.status = TuteladoStatus.ATIVO;
+
+        // Atualizar o papel do usuário
+        if (user.role !== 'admin') {
+          user.role = 'tutelado';
+          await this.userRepository.save(user);
+        }
+
+        tutelado = await this.tuteladoRepository.save(novoTutelado);
+      } else {
+        throw error; // Outro tipo de erro, propagar
+      }
+    }
+
+    // Verificar se já existe solicitação pendente
+    const solicitacaoExistente = await this.solicitacaoRepository.findOne({
+      where: {
+        tuteladoId: tutelado.id,
+        tutorId: solicitacaoDto.tutorId,
+        status: StatusSolicitacao.PENDENTE,
+      },
+    });
+
+    if (solicitacaoExistente) {
+      throw new BadRequestException(
+        'Já existe uma solicitação pendente para este tutor',
+      );
+    }
+
+    // Criar nova solicitação
+    const solicitacao = new SolicitacaoVinculo();
+    solicitacao.tutorId = solicitacaoDto.tutorId;
+    solicitacao.tuteladoId = tutelado.id;
+    solicitacao.status = StatusSolicitacao.PENDENTE;
+
+    const novaSolicitacao = await this.solicitacaoRepository.save(solicitacao);
+
+    // Enviar email para o tutor
+    await this.enviarEmailSolicitacaoVinculo(novaSolicitacao);
+
+    return novaSolicitacao;
+  }
+
+  async responderSolicitacaoVinculo(
+    tutorUserId: number,
+    solicitacaoId: number,
+    respostaDto: RespostaSolicitacaoDto,
+  ): Promise<SolicitacaoVinculo> {
+    // Obter tutor
+    const tutor = await this.findTutorByUserId(tutorUserId);
+
+    // Buscar a solicitação
+    const solicitacao = await this.solicitacaoRepository.findOne({
+      where: {
+        id: solicitacaoId,
+        tutorId: tutor.id,
+        status: StatusSolicitacao.PENDENTE,
+      },
+    });
+
+    if (!solicitacao) {
+      throw new NotFoundException(
+        'Solicitação não encontrada ou já processada',
+      );
+    }
+
+    // Atualizar status da solicitação
+    solicitacao.status = respostaDto.aprovado
+      ? StatusSolicitacao.APROVADA
+      : StatusSolicitacao.REJEITADA;
+    solicitacao.dataProcessamento = new Date();
+
+    // Salvar alterações
+    const solicitacaoAtualizada =
+      await this.solicitacaoRepository.save(solicitacao);
+
+    // Se aprovado, efetuar o vínculo
+    if (respostaDto.aprovado) {
+      const tutelado = await this.tuteladoRepository.findOne({
+        where: { id: solicitacao.tuteladoId },
+      });
+
+      if (!tutelado) {
+        throw new NotFoundException(
+          `Tutelado com ID ${solicitacao.tuteladoId} não encontrado`,
+        );
+      }
+
+      tutelado.tutorId = tutor.id;
+      tutelado.status = TuteladoStatus.ATIVO;
+      await this.tuteladoRepository.save(tutelado);
+    }
+
+    return solicitacaoAtualizada;
+  }
+
+  async listarSolicitacoesPendentes(
+    tutorUserId: number,
+  ): Promise<SolicitacaoVinculo[]> {
+    const tutor = await this.findTutorByUserId(tutorUserId);
+
+    return this.solicitacaoRepository.find({
+      where: {
+        tutorId: tutor.id,
+        status: StatusSolicitacao.PENDENTE,
+      },
+      relations: ['tutelado', 'tutelado.user'],
+    });
+  }
+
+  private async enviarEmailSolicitacaoVinculo(
+    solicitacao: SolicitacaoVinculo,
+  ): Promise<void> {
+    // Buscar dados do tutor e tutelado
+    const tutor = await this.tutorRepository.findOne({
+      where: { id: solicitacao.tutorId },
+      relations: ['user'],
+    });
+
+    const tutelado = await this.tuteladoRepository.findOne({
+      where: { id: solicitacao.tuteladoId },
+      relations: ['user'],
+    });
+
+    if (!tutor?.user || !tutelado?.user) {
+      throw new NotFoundException('Dados de tutor ou tutelado não encontrados');
+    }
+
+    const tutorEmail = tutor.user.email;
+    const tutorName = `${tutor.user.firstName} ${tutor.user.lastName}`;
+    const tuteladoName = `${tutelado.user.firstName} ${tutelado.user.lastName}`;
+
+    // HTML para o email
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 5px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <img src="https://qualityentregas.com.br/wp-content/uploads/2023/09/Ativo-2.png" alt="QProspekta Logo" style="max-width: 200px;">
+        </div>
+        <h2 style="color: #4CAF50; text-align: center;">Nova Solicitação de Vínculo</h2>
+        <p>Olá, ${tutorName}!</p>
+        <p>Você recebeu uma solicitação de vínculo do tutelado <strong>${tuteladoName}</strong> na plataforma QProspekta.</p>
+        
+        <div style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #4CAF50; margin: 20px 0;">
+          <p style="margin: 0; font-size: 16px;">Para aprovar ou rejeitar esta solicitação, acesse seu painel na plataforma.</p>
+        </div>
+        
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="https://www.qprospekta.com/solicitacoes" style="background-color: #4CAF50; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">GERENCIAR SOLICITAÇÕES</a>
+        </div>
+        
+        <p>Se você tiver alguma dúvida, entre em contato com nossa equipe de suporte.</p>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+          <p style="margin: 0;">Atenciosamente,</p>
+          <p style="margin: 5px 0;"><strong>Equipe QProspekta</strong></p>
+        </div>
+      </div>
+    `;
+
+    const plainText = `
+      Nova Solicitação de Vínculo
+      
+      Olá, ${tutorName}!
+      
+      Você recebeu uma solicitação de vínculo do tutelado ${tuteladoName} na plataforma QProspekta.
+      
+      Para aprovar ou rejeitar esta solicitação, acesse seu painel na plataforma: https://www.qprospekta.com/solicitacoes
+      
+      Se você tiver alguma dúvida, entre em contato com nossa equipe de suporte.
+      
+      Atenciosamente,
+      Equipe QProspekta
+    `;
+
+    await this.emailService.sendTutorSolicitacaoEmail(tutorEmail, {
+      tutorName,
+      tuteladoName,
+      htmlContent,
+      plainText,
+    });
   }
 }

@@ -33,6 +33,7 @@ import { PesquisaNetrinModule } from './pesquisa-netrin/pesquisa-netrin.module';
 import { TutorModule } from './tutor/tutor.module';
 import { Tutor } from './tutor/entities/tutor.entity';
 import { Tutelado } from './tutor/entities/tutelado.entity';
+import { SolicitacaoVinculo } from './tutor/entities/solicitacao-vinculo.entity';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { Tutelado } from './tutor/entities/tutelado.entity';
           SystemLog,
           Tutor,
           Tutelado,
+          SolicitacaoVinculo,
         ],
         logging: true,
         synchronize: false,

@@ -8,6 +8,7 @@ import { RegisteredUser } from '../user/entity/user.entity';
 import { Veiculo } from '../cadastro-veiculo/entities/veiculo.entity';
 import { EmailModule } from 'src/email/email.module';
 import { Empresa } from '../empresa/entities/empresa.entity';
+import { SolicitacaoVinculo } from './entities/solicitacao-vinculo.entity';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { Empresa } from '../empresa/entities/empresa.entity';
       RegisteredUser,
       Veiculo,
       Empresa,
+      SolicitacaoVinculo,
     ]),
     EmailModule,
   ],
