@@ -13,27 +13,27 @@ services:
       - ./uploads:/app/uploads
       - ./temp:/app/temp
     
-  db:
-    image: mysql:8.0
-    container_name: qcadastro_db
-    restart: always
-    ports:
-      - "3306:3306"
-    environment:
-      - MYSQL_HOST=${DB_HOST}
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=qeCadastro
-      - MYSQL_USER=${DB_USER}
-      - MYSQL_PASSWORD=${DB_PASSWORD}
-    volumes:
-      - mysql_data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "bruno", "-pQuality#2025" ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+  # db:
+  #   image: mysql:8.0
+  #   container_name: qcadastro_db
+  #   restart: always
+  #   ports:
+  #     - "3306:3306"
+  #   environment:
+  #     - MYSQL_HOST=${DB_HOST}
+  #     - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+  #     - MYSQL_DATABASE=qeCadastro
+  #     - MYSQL_USER=${DB_USER}
+  #     - MYSQL_PASSWORD=${DB_PASSWORD}
+  #   volumes:
+  #     - mysql_data:/var/lib/mysql
+  #   command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+  #   healthcheck:
+  #     test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "bruno", "-pQuality#2025" ]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s
 
   nginx:
     image: nginx:alpine
