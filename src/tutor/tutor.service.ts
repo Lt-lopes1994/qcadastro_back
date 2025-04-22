@@ -324,7 +324,7 @@ export class TutorService {
 
     // Dados do tutor
     const tutor = {
-      id: dadosBrutos.id,
+      id: dadosBrutos.tutor_id, // Usando o alias correto
       userId: dadosBrutos.userId,
       scoreCredito: dadosBrutos.scoreCredito,
       status: dadosBrutos.status,
@@ -346,7 +346,7 @@ export class TutorService {
 
     // Dados do usuário (excluindo campos sensíveis)
     const usuario = {
-      id: dadosBrutos.userId,
+      id: dadosBrutos.user_id, // Usando o alias correto
       firstName: dadosBrutos.firstName,
       lastName: dadosBrutos.lastName,
       cpf: dadosBrutos.cpf,
@@ -365,7 +365,7 @@ export class TutorService {
     // Dados da empresa
     const empresa = dadosBrutos.empresaId
       ? {
-          id: dadosBrutos.empresaId,
+          id: dadosBrutos.empresa_id, // Usando o alias correto
           cnpj: dadosBrutos.cnpj,
           razaoSocial: dadosBrutos.razaoSocial,
           nomeFantasia: dadosBrutos.nomeFantasia,
@@ -517,8 +517,10 @@ export class TutorService {
         );
       }
 
-      // Atualizar o tutor diretamente em vez de usar o update
+      // Atualizar o tutor com o ID e CNPJ da empresa (sempre no formato somente números)
       tutor.empresaId = vincularEmpresaDto.empresaId;
+      tutor.cnpjEmpresa = empresa.cnpj.replace(/[^\d]/g, ''); // Remover todos caracteres não numéricos
+
       const tutorAtualizado = await this.tutorRepository.save(tutor);
 
       // Carregar a relação com a empresa para a resposta
@@ -559,6 +561,17 @@ export class TutorService {
     tuteladoUserId: number,
     solicitacaoDto: SolicitacaoVinculoDto,
   ): Promise<SolicitacaoVinculo> {
+    // Verificar se o tutor existe
+    const tutorExiste = await this.tutorRepository.findOne({
+      where: { id: solicitacaoDto.tutorId },
+    });
+
+    if (!tutorExiste) {
+      throw new NotFoundException(
+        `Tutor com ID ${solicitacaoDto.tutorId} não encontrado`,
+      );
+    }
+
     // Verificar se o usuário já existe como tutelado
     let tutelado: Tutelado;
     try {
@@ -578,10 +591,10 @@ export class TutorService {
           );
         }
 
-        // Criar novo tutelado
+        // Criar novo tutelado SEM vincular ao tutor ainda
         const novoTutelado = new Tutelado();
         novoTutelado.userId = tuteladoUserId;
-        novoTutelado.status = TuteladoStatus.ATIVO;
+        novoTutelado.status = TuteladoStatus.INATIVO; // Inicialmente inativo
 
         // Atualizar o papel do usuário
         if (user.role !== 'admin') {
@@ -761,5 +774,223 @@ export class TutorService {
       htmlContent,
       plainText,
     });
+  }
+
+  async findTutorByCnpjEmpresa(cnpj: string): Promise<Tutor[]> {
+    // Normalizar o CNPJ removendo caracteres especiais
+    const cnpjNumerico = cnpj.replace(/[^\d]/g, '');
+
+    // Construir possíveis formatos de CNPJ para a busca
+    const formatoPadrao = cnpj;
+    const formatoNumerico = cnpjNumerico;
+    const formatoFormatado = cnpjNumerico.replace(
+      /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
+      '$1.$2.$3/$4-$5',
+    );
+
+    console.log('Buscando tutores por CNPJ nos formatos:', {
+      formatoPadrao,
+      formatoNumerico,
+      formatoFormatado,
+    });
+
+    // Buscar no banco usando os possíveis formatos
+    const tutores = await this.tutorRepository
+      .createQueryBuilder('tutor')
+      .leftJoinAndSelect('tutor.user', 'user')
+      .leftJoinAndSelect('tutor.empresa', 'empresa')
+      .where('tutor.cnpjEmpresa = :formato1', { formato1: formatoPadrao })
+      .orWhere('tutor.cnpjEmpresa = :formato2', { formato2: formatoNumerico })
+      .orWhere('tutor.cnpjEmpresa = :formato3', { formato3: formatoFormatado })
+      .orWhere('REPLACE(tutor.cnpjEmpresa, ".", "") = :cnpjSemPontos', {
+        cnpjSemPontos: formatoNumerico,
+      })
+      .getMany();
+
+    return tutores;
+  }
+
+  async verificarCnpj(cnpj: string): Promise<{
+    encontrado: boolean;
+    dados?: { tutor: any; usuario: any; empresa: any }[];
+  }> {
+    try {
+      // Normalizar o CNPJ removendo caracteres especiais
+      const cnpjNumerico = cnpj.replace(/[^\d]/g, '');
+
+      // Construir possíveis formatos de CNPJ para a busca
+      const formatoPadrao = cnpj;
+      const formatoNumerico = cnpjNumerico;
+      const formatoFormatado = cnpjNumerico.replace(
+        /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
+        '$1.$2.$3/$4-$5',
+      );
+
+      console.log('Verificando tutores por CNPJ nos formatos:', {
+        formatoPadrao,
+        formatoNumerico,
+        formatoFormatado,
+      });
+
+      // Busca tutores pelo CNPJ usando consulta SQL para obter todos os dados relacionados
+      const result = await this.tutorRepository.query(
+        `SELECT
+          t.id AS tutor_id,
+          t.userId,
+          t.scoreCredito,
+          t.status,
+          t.scoreD00,
+          t.scoreD30,
+          t.scoreD60,
+          t.rendaIndividual,
+          t.rendaFamiliar,
+          t.rendaPresumida,
+          t.classeSocialPessoal,
+          t.classeSocialFamiliar,
+          t.scoreValido,
+          t.createdAt AS tutor_created,
+          t.updatedAt AS tutor_updated,
+          t.assinadoContrato,
+          t.dataAssinaturaContrato,
+          t.empresaId,
+          t.cnpjEmpresa,
+          rs.id AS user_id,
+          rs.firstName,
+          rs.lastName,
+          rs.cpf,
+          rs.cpfStatus,
+          rs.email,
+          rs.emailVerified,
+          rs.phoneNumber,
+          rs.phoneVerified,
+          rs.role,
+          rs.isActive,
+          rs.fotoPath,
+          rs.lgpdAcceptedAt,
+          e.id AS empresa_id,
+          e.cnpj,
+          e.razaoSocial,
+          e.nomeFantasia,
+          e.naturezaJuridica,
+          e.logradouro,
+          e.numero,
+          e.complemento,
+          e.bairro,
+          e.municipio,
+          e.cep,
+          e.uf,
+          e.telefone,
+          e.situacaoCadastral,
+          e.dataInicioAtividade,
+          e.atividadeEconomica,
+          e.porte,
+          e.capitalSocial,
+          e.urlComprovante,
+          e.logoPath
+        FROM
+          tutores t
+        JOIN
+          registered_user rs ON t.userId = rs.id
+        LEFT JOIN
+          empresa e ON t.empresaId = e.id
+        WHERE
+          t.cnpjEmpresa = ?
+          OR t.cnpjEmpresa = ?
+          OR t.cnpjEmpresa = ?
+          OR REPLACE(t.cnpjEmpresa, '.', '') = ?
+        `,
+        [formatoPadrao, formatoNumerico, formatoFormatado, formatoNumerico],
+      );
+
+      console.log('Resultado da verificação de CNPJ:', result);
+
+      // Se o resultado for vazio, significa que o CNPJ não está cadastrado
+      if (!result || result.length === 0) {
+        return { encontrado: false };
+      }
+
+      // Se encontrou, vamos organizar os dados por entidade
+      const dadosFormatados = result.map((dadosBrutos) => {
+        // Dados do tutor
+        const tutor = {
+          id: dadosBrutos.tutor_id, // Usando o alias correto
+          userId: dadosBrutos.userId,
+          scoreCredito: dadosBrutos.scoreCredito,
+          status: dadosBrutos.status,
+          scoreD00: dadosBrutos.scoreD00,
+          scoreD30: dadosBrutos.scoreD30,
+          scoreD60: dadosBrutos.scoreD60,
+          rendaIndividual: dadosBrutos.rendaIndividual,
+          rendaFamiliar: dadosBrutos.rendaFamiliar,
+          rendaPresumida: dadosBrutos.rendaPresumida,
+          classeSocialPessoal: dadosBrutos.classeSocialPessoal,
+          classeSocialFamiliar: dadosBrutos.classeSocialFamiliar,
+          scoreValido: dadosBrutos.scoreValido,
+          createdAt: dadosBrutos.tutor_created,
+          updatedAt: dadosBrutos.tutor_updated,
+          assinadoContrato: dadosBrutos.assinadoContrato,
+          dataAssinaturaContrato: dadosBrutos.dataAssinaturaContrato,
+          empresaId: dadosBrutos.empresaId,
+          cnpjEmpresa: dadosBrutos.cnpjEmpresa,
+        };
+
+        // Dados do usuário (excluindo campos sensíveis)
+        const usuario = {
+          id: dadosBrutos.user_id, // Usando o alias correto
+          firstName: dadosBrutos.firstName,
+          lastName: dadosBrutos.lastName,
+          cpf: dadosBrutos.cpf,
+          cpfStatus: dadosBrutos.cpfStatus,
+          email: dadosBrutos.email,
+          emailVerified: dadosBrutos.emailVerified,
+          phoneNumber: dadosBrutos.phoneNumber,
+          phoneVerified: dadosBrutos.phoneVerified,
+          role: dadosBrutos.role,
+          isActive: dadosBrutos.isActive,
+          fotoPath: dadosBrutos.fotoPath,
+          lgpdAcceptedAt: dadosBrutos.lgpdAcceptedAt,
+        };
+
+        // Dados da empresa
+        const empresa = dadosBrutos.empresaId
+          ? {
+              id: dadosBrutos.empresa_id, // Usando o alias correto
+              cnpj: dadosBrutos.cnpj,
+              razaoSocial: dadosBrutos.razaoSocial,
+              nomeFantasia: dadosBrutos.nomeFantasia,
+              naturezaJuridica: dadosBrutos.naturezaJuridica,
+              logradouro: dadosBrutos.logradouro,
+              numero: dadosBrutos.numero,
+              complemento: dadosBrutos.complemento,
+              bairro: dadosBrutos.bairro,
+              municipio: dadosBrutos.municipio,
+              cep: dadosBrutos.cep,
+              uf: dadosBrutos.uf,
+              telefone: dadosBrutos.telefone,
+              situacaoCadastral: dadosBrutos.situacaoCadastral,
+              dataInicioAtividade: dadosBrutos.dataInicioAtividade,
+              atividadeEconomica: dadosBrutos.atividadeEconomica,
+              porte: dadosBrutos.porte,
+              capitalSocial: dadosBrutos.capitalSocial,
+              urlComprovante: dadosBrutos.urlComprovante,
+              logoPath: dadosBrutos.logoPath,
+            }
+          : null;
+
+        return {
+          tutor,
+          usuario,
+          empresa,
+        };
+      });
+
+      return {
+        encontrado: true,
+        dados: dadosFormatados,
+      };
+    } catch (error) {
+      console.error('Erro ao verificar CNPJ:', error);
+      return { encontrado: false };
+    }
   }
 }

@@ -70,6 +70,9 @@ export class Tutor {
   @Column({ nullable: true })
   empresaId: number;
 
+  @Column({ nullable: true })
+  cnpjEmpresa: string;
+
   @ManyToOne(() => Empresa, { nullable: true })
   @JoinColumn({ name: 'empresaId' })
   empresa: Empresa;

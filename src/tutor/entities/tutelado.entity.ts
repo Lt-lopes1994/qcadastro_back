@@ -23,7 +23,7 @@ export class Tutelado {
   @Column()
   userId: number;
 
-  @Column()
+  @Column({ nullable: true })
   tutorId: number;
 
   @Column({ nullable: true })

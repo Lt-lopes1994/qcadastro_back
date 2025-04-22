@@ -198,6 +198,11 @@ export class TutorController {
     return this.tutorService.verificarCpf(cpf);
   }
 
+  @Get('verificar-cnpj/:cnpj')
+  async verificarCnpj(@Param('cnpj') cnpj: string) {
+    return this.tutorService.verificarCnpj(cnpj);
+  }
+
   // @Post(':id/vincular-empresa')
   // async vincularEmpresa(
   //   @Param('id', ParseIntPipe) tutorId: number,
@@ -297,7 +302,15 @@ export class TutorController {
     @Req() request: UserRequest,
   ) {
     try {
+      console.log(
+        'Recebendo requisição para solicitar vínculo:',
+        solicitacaoDto.tutorId,
+      );
+
       const userId = request.user.id;
+      // Garantindo que tutorId seja um número
+      solicitacaoDto.tutorId = Number(solicitacaoDto.tutorId);
+
       const resultado = await this.tutorService.solicitarVinculoTutor(
         userId,
         solicitacaoDto,

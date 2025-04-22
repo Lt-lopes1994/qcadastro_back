@@ -33,8 +33,10 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: false,
+      transform: true, // Garante que os tipos são convertidos automaticamente
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
     }),
   );
 
