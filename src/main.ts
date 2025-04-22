@@ -4,7 +4,6 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
-import * as cors from 'cors';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
@@ -28,25 +27,26 @@ async function bootstrap() {
   // Proteção de cabeçalhos HTTP
   app.use(helmet());
 
-  // Configuração CORS - Corrigido para processar múltiplas origens
-  const corsOrigins = Array.from(
-    new Set(
-      (configService.get<string>('CORS_ORIGINS') || '')
-        .split(',')
-        .map((origin) => origin.trim()),
-    ),
-  );
-
-  app.use(
-    cors({
-      origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      credentials: true,
-      allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-      preflightContinue: false,
-      optionsSuccessStatus: 204,
-    }),
-  );
+  // Configuração CORS
+  app.enableCors({
+    origin: (origin, callback) => {
+      const allowedOrigins = (configService.get<string>('CORS_ORIGINS') || '').split(',').map(o => o.trim());
+      allowedOrigins.push('https://www.qprospekta.com', 'https://qprospekta.com');
+      
+      // Durante desenvolvimento ou sem origem (como em requisições diretas)
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.warn(`Origem bloqueada pelo CORS: ${origin}`);
+        callback(null, false);
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204
+  });
 
   // Configurar arquivos estáticos
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
