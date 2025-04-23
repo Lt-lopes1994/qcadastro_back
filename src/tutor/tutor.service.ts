@@ -704,6 +704,30 @@ export class TutorService {
     });
   }
 
+  async listarMinhasSolicitacoesPendentes(
+    userId: number,
+  ): Promise<SolicitacaoVinculo[]> {
+    try {
+      // Buscar o tutelado pelo ID do usuário
+      const tutelado = await this.findTuteladoByUserId(userId);
+
+      // Buscar as solicitações pendentes para este tutelado
+      return this.solicitacaoRepository.find({
+        where: {
+          tuteladoId: tutelado.id,
+          status: StatusSolicitacao.PENDENTE,
+        },
+        relations: ['tutor', 'tutor.user'],
+      });
+    } catch (error) {
+      // Se o usuário não for um tutelado, retornar lista vazia
+      if (error instanceof NotFoundException) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
   private async enviarEmailSolicitacaoVinculo(
     solicitacao: SolicitacaoVinculo,
   ): Promise<void> {
