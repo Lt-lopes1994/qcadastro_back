@@ -37,9 +37,7 @@ async function bootstrap() {
         .filter(Boolean);
       
       const allowedOriginsSet = new Set([
-        ...allowedOriginsFromEnv, 
-        'https://www.qprospekta.com', 
-        'https://qprospekta.com'
+        ...allowedOriginsFromEnv,
       ]);
       
       const allowedOrigins = Array.from(allowedOriginsSet);
