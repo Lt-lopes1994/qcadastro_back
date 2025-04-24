@@ -49,6 +49,4 @@ services:
     depends_on:
       - app
     restart: always
-
-volumes:
-  mysql_data:
+   

@@ -27,7 +27,11 @@ async function bootstrap() {
   // Proteção de cabeçalhos HTTP
   app.use(helmet());
 
-  // Configuração CORS
+  // Se estiver usando Nginx como proxy reverso, pode desabilitar o CORS no NestJS
+  // já que o Nginx está configurando os cabeçalhos CORS
+  // Remova ou comente essa seção:
+  
+  /* 
   app.enableCors({
     origin: (origin, callback) => {
       // Use Set para garantir valores únicos
@@ -55,15 +59,13 @@ async function bootstrap() {
     preflightContinue: false,
     optionsSuccessStatus: 204
   });
+  */
+  
+  // Alternativamente, se preferir manter o CORS no NestJS, remova a configuração do Nginx
 
-  // Configurar arquivos estáticos
+  // Configurar arquivos estáticos sem adicionar cabeçalhos CORS duplicados
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
     prefix: '/uploads',
-    setHeaders: (res) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET');
-      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    },
   });
 
   const portNumber = process.env.PORT || 3000;
