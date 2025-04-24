@@ -364,6 +364,16 @@ export class TutorController {
     return this.tutorService.listarMinhasSolicitacoesPendentes(userId);
   }
 
+  @Get('minhas-solicitacoes-negadas')
+  @ApiOperation({
+    summary: 'Listar solicitações de vínculo Negados do usuário atual',
+  })
+  @ApiResponse({ status: 200, description: 'Lista de solicitações pendentes' })
+  async listarMinhasSolicitacoesNegadas(@Req() request: UserRequest) {
+    const userId = request.user.id;
+    return this.tutorService.listarMinhasSolicitacoesNegadas(userId);
+  }
+
   @Post('solicitacoes/:id/responder')
   @ApiOperation({ summary: 'Responder solicitação de vínculo' })
   @ApiParam({ name: 'id', description: 'ID da solicitação' })
@@ -396,5 +406,14 @@ export class TutorController {
       console.error('Erro ao responder solicitação:', error);
       throw error;
     }
+  }
+
+  @Get('tutelado-info')
+  @ApiOperation({ summary: 'Obter informações do tutelado' })
+  @ApiResponse({ status: 200, description: 'Informações do tutelado' })
+  @ApiResponse({ status: 404, description: 'Tutelado não encontrado' })
+  async obterInformacoesTutelado(@Req() request: UserRequest) {
+    const userId = request.user.id;
+    return this.tutorService.obterInformacoesTutelado(userId);
   }
 }

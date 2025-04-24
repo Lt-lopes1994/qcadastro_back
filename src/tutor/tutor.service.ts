@@ -5,6 +5,7 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -642,52 +643,104 @@ export class TutorService {
     solicitacaoId: number,
     respostaDto: RespostaSolicitacaoDto,
   ): Promise<SolicitacaoVinculo> {
-    // Obter tutor
-    const tutor = await this.findTutorByUserId(tutorUserId);
-
-    // Buscar a solicitação
-    const solicitacao = await this.solicitacaoRepository.findOne({
-      where: {
-        id: solicitacaoId,
-        tutorId: tutor.id,
-        status: StatusSolicitacao.PENDENTE,
-      },
-    });
-
-    if (!solicitacao) {
-      throw new NotFoundException(
-        'Solicitação não encontrada ou já processada',
+    try {
+      console.log(
+        `Iniciando resposta à solicitação ID ${solicitacaoId} com aprovação: ${respostaDto.aprovado}`,
       );
-    }
 
-    // Atualizar status da solicitação
-    solicitacao.status = respostaDto.aprovado
-      ? StatusSolicitacao.APROVADA
-      : StatusSolicitacao.REJEITADA;
-    solicitacao.dataProcessamento = new Date();
-
-    // Salvar alterações
-    const solicitacaoAtualizada =
-      await this.solicitacaoRepository.save(solicitacao);
-
-    // Se aprovado, efetuar o vínculo
-    if (respostaDto.aprovado) {
-      const tutelado = await this.tuteladoRepository.findOne({
-        where: { id: solicitacao.tuteladoId },
+      // Obter tutor
+      const tutor = await this.findTutorByUserId(tutorUserId);
+      if (!tutor) {
+        throw new NotFoundException(
+          `Tutor com ID ${tutorUserId} não encontrado`,
+        );
+      }
+      // Buscar a solicitação específica pelo ID
+      const solicitacao = await this.solicitacaoRepository.findOne({
+        where: { id: solicitacaoId },
+        relations: ['tutelado'],
       });
 
-      if (!tutelado) {
+      // Verificar se a solicitação existe
+      if (!solicitacao) {
         throw new NotFoundException(
-          `Tutelado com ID ${solicitacao.tuteladoId} não encontrado`,
+          `Solicitação com ID ${solicitacaoId} não encontrada`,
+        );
+      }
+      console.log(`Solicitação encontrada: ${JSON.stringify(solicitacao)}`);
+
+      // Verificar se a solicitação pertence ao tutor
+      if (solicitacao.tutorId !== tutor.id) {
+        throw new ForbiddenException(
+          'Você não tem permissão para responder a esta solicitação',
         );
       }
 
-      tutelado.tutorId = tutor.id;
-      tutelado.status = TuteladoStatus.ATIVO;
-      await this.tuteladoRepository.save(tutelado);
-    }
+      // Verificar se a solicitação já foi processada
+      if (solicitacao.status !== StatusSolicitacao.PENDENTE) {
+        throw new BadRequestException(
+          `Esta solicitação já foi ${solicitacao.status === StatusSolicitacao.APROVADA ? 'aprovada' : 'rejeitada'} anteriormente`,
+        );
+      }
 
-    return solicitacaoAtualizada;
+      // Atualizar status da solicitação
+      solicitacao.status = respostaDto.aprovado
+        ? StatusSolicitacao.APROVADA
+        : StatusSolicitacao.REJEITADA;
+      solicitacao.dataProcessamento = new Date();
+
+      // Salvar alterações da solicitação
+      const solicitacaoAtualizada =
+        await this.solicitacaoRepository.save(solicitacao);
+
+      // Se aprovado, efetuar o vínculo
+      if (respostaDto.aprovado) {
+        try {
+          // Verificar se o tutelado existe
+
+          // Buscar com todos os detalhes necessários
+          const tutelado = await this.tuteladoRepository.findOne({
+            where: { id: solicitacao.tuteladoId },
+          });
+
+          if (!tutelado) {
+            console.error(
+              `Tutelado com ID ${solicitacao.tuteladoId} não encontrado!`,
+            );
+            throw new NotFoundException(
+              `Tutelado com ID ${solicitacao.tuteladoId} não encontrado`,
+            );
+          }
+
+          // Atualizar o tutelado
+          console.log(
+            `Atualizando tutelado para tutorId=${tutor.id} e status=ATIVO`,
+          );
+          tutelado.tutorId = tutor.id;
+          tutelado.status = TuteladoStatus.ATIVO;
+
+          // Salvar tutelado com método explícito de atualização
+          const tuteladoSalvo = await this.tuteladoRepository.save({
+            ...tutelado,
+            tutorId: tutor.id,
+            status: TuteladoStatus.ATIVO,
+          });
+
+          console.log(
+            `Tutelado atualizado com sucesso: ${JSON.stringify(tuteladoSalvo)}`,
+          );
+        } catch (vinculoError) {
+          throw new BadRequestException(
+            `Erro ao vincular tutelado: ${vinculoError.message}`,
+          );
+        }
+      }
+
+      return solicitacaoAtualizada;
+    } catch (error) {
+      console.error('Erro ao responder solicitação:', error);
+      throw error;
+    }
   }
 
   async listarSolicitacoesPendentes(
@@ -716,6 +769,30 @@ export class TutorService {
         where: {
           tuteladoId: tutelado.id,
           status: StatusSolicitacao.PENDENTE,
+        },
+        relations: ['tutor', 'tutor.user'],
+      });
+    } catch (error) {
+      // Se o usuário não for um tutelado, retornar lista vazia
+      if (error instanceof NotFoundException) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  async listarMinhasSolicitacoesNegadas(
+    userId: number,
+  ): Promise<SolicitacaoVinculo[]> {
+    try {
+      // Buscar o tutelado pelo ID do usuário
+      const tutelado = await this.findTuteladoByUserId(userId);
+
+      // Buscar as solicitações Negadas para este tutelado
+      return this.solicitacaoRepository.find({
+        where: {
+          tuteladoId: tutelado.id,
+          status: StatusSolicitacao.REJEITADA,
         },
         relations: ['tutor', 'tutor.user'],
       });
@@ -1016,5 +1093,117 @@ export class TutorService {
       console.error('Erro ao verificar CNPJ:', error);
       return { encontrado: false };
     }
+  }
+
+  async obterInformacoesTutelado(userId: number) {
+    // Verificar se o usuário existe
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new NotFoundException(`Usuário com ID ${userId} não encontrado`);
+    }
+
+    // Verificar se o usuário é um tutelado
+    const tutelado = await this.tuteladoRepository.findOne({
+      where: { userId },
+      relations: ['tutor', 'tutor.user'],
+    });
+
+    if (!tutelado) {
+      throw new NotFoundException(`Usuário com ID ${userId} não é um tutelado`);
+    }
+
+    // Remover dados sensíveis dos objetos de usuário
+    const sanitizedUser = this.removeDadosSensiveis(user);
+    const sanitizedTutorUser = tutelado.tutor?.user
+      ? this.removeDadosSensiveis(tutelado.tutor.user)
+      : null;
+
+    // Recuperar veículo se existir
+    let veiculo: Veiculo | Record<string, any> | null = null;
+    if (tutelado.veiculoDesignadoId) {
+      const veiculoCompleto = await this.veiculoRepository.findOne({
+        where: { id: tutelado.veiculoDesignadoId },
+        relations: ['tutor', 'tutor.user'],
+      });
+
+      if (veiculoCompleto && veiculoCompleto.tutor?.user) {
+        veiculo = {
+          ...veiculoCompleto,
+          tutor: {
+            ...veiculoCompleto.tutor,
+            user: this.removeDadosSensiveis(veiculoCompleto.tutor.user),
+          },
+        };
+      } else {
+        veiculo = veiculoCompleto;
+      }
+    }
+
+    return {
+      user: sanitizedUser,
+      tutelado: {
+        ...tutelado,
+        tutor: {
+          ...tutelado.tutor,
+          user: sanitizedTutorUser,
+        },
+      },
+      tutor: {
+        ...tutelado.tutor,
+        user: sanitizedTutorUser,
+      },
+      tutorUser: sanitizedTutorUser,
+      veiculoDesignado: tutelado.veiculoDesignado,
+      veiculo: veiculo,
+    };
+  }
+
+  // Método auxiliar para remover dados sensíveis dos objetos de usuário
+  private removeDadosSensiveis(
+    user: RegisteredUser,
+  ): Partial<RegisteredUser> | null {
+    if (!user) return null;
+
+    // Desestruturação para extrair apenas os campos que queremos manter
+    const {
+      id,
+      cpf,
+      firstName,
+      lastName,
+      cpfStatus,
+      cpfVerificationUrl,
+      email,
+      emailVerified,
+      phoneNumber,
+      phoneVerified,
+      role,
+      isActive,
+      fotoPath,
+      lgpdAcceptedAt,
+      createdAt,
+      updatedAt,
+    } = user;
+
+    // Retornar apenas os campos seguros
+    return {
+      id,
+      cpf,
+      firstName,
+      lastName,
+      cpfStatus,
+      cpfVerificationUrl,
+      email,
+      emailVerified,
+      phoneNumber,
+      phoneVerified,
+      role,
+      isActive,
+      fotoPath,
+      lgpdAcceptedAt,
+      createdAt,
+      updatedAt,
+    };
   }
 }
