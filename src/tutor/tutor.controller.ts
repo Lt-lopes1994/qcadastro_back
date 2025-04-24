@@ -150,6 +150,15 @@ export class TutorController {
     return this.tutorService.findTutorByUserId(request.user.id);
   }
 
+  @Get('tutelados')
+  @ApiOperation({ summary: 'Listar tutelados do tutor atual' })
+  @ApiResponse({ status: 200, description: 'Lista de tutelados' })
+  @ApiResponse({ status: 404, description: 'Tutelados não encontrados' })
+  async listarTuteladosDoTutor(@Req() request: UserRequest) {
+    const tutor = await this.tutorService.findTutorByUserId(request.user.id);
+    return this.tutorService.listarTutelados(tutor.id);
+  }
+
   @Get('tutelado/perfil')
   async perfilTutelado(@Req() request: UserRequest) {
     return this.tutorService.findTuteladoByUserId(request.user.id);
@@ -196,6 +205,11 @@ export class TutorController {
   @Get('verificar/:cpf')
   async verificarCpf(@Param('cpf') cpf: string) {
     return this.tutorService.verificarCpf(cpf);
+  }
+
+  @Get('verificar-cnpj/:cnpj')
+  async verificarCnpj(@Param('cnpj') cnpj: string) {
+    return this.tutorService.verificarCnpj(cnpj);
   }
 
   // @Post(':id/vincular-empresa')
@@ -297,7 +311,15 @@ export class TutorController {
     @Req() request: UserRequest,
   ) {
     try {
+      console.log(
+        'Recebendo requisição para solicitar vínculo:',
+        solicitacaoDto.tutorId,
+      );
+
       const userId = request.user.id;
+      // Garantindo que tutorId seja um número
+      solicitacaoDto.tutorId = Number(solicitacaoDto.tutorId);
+
       const resultado = await this.tutorService.solicitarVinculoTutor(
         userId,
         solicitacaoDto,
@@ -316,11 +338,40 @@ export class TutorController {
   }
 
   @Get('solicitacoes-pendentes')
-  @ApiOperation({ summary: 'Listar solicitações de vínculo pendentes' })
+  @ApiOperation({
+    summary: 'Listar solicitações de vínculo pendentes para o tutor logado',
+  })
   @ApiResponse({ status: 200, description: 'Lista de solicitações pendentes' })
+  @ApiResponse({ status: 403, description: 'Acesso negado' })
+  @ApiResponse({ status: 404, description: 'Tutor não encontrado' })
   async listarSolicitacoesPendentes(@Req() request: UserRequest) {
+    try {
+      const userId = request.user.id;
+      return await this.tutorService.listarSolicitacoesPendentes(userId);
+    } catch (error) {
+      console.error('Erro ao listar solicitações pendentes:', error);
+      throw error;
+    }
+  }
+
+  @Get('minhas-solicitacoes-pendentes')
+  @ApiOperation({
+    summary: 'Listar solicitações de vínculo pendentes do usuário atual',
+  })
+  @ApiResponse({ status: 200, description: 'Lista de solicitações pendentes' })
+  async listarMinhasSolicitacoesPendentes(@Req() request: UserRequest) {
     const userId = request.user.id;
-    return this.tutorService.listarSolicitacoesPendentes(userId);
+    return this.tutorService.listarMinhasSolicitacoesPendentes(userId);
+  }
+
+  @Get('minhas-solicitacoes-negadas')
+  @ApiOperation({
+    summary: 'Listar solicitações de vínculo Negados do usuário atual',
+  })
+  @ApiResponse({ status: 200, description: 'Lista de solicitações pendentes' })
+  async listarMinhasSolicitacoesNegadas(@Req() request: UserRequest) {
+    const userId = request.user.id;
+    return this.tutorService.listarMinhasSolicitacoesNegadas(userId);
   }
 
   @Post('solicitacoes/:id/responder')
@@ -355,5 +406,14 @@ export class TutorController {
       console.error('Erro ao responder solicitação:', error);
       throw error;
     }
+  }
+
+  @Get('tutelado-info')
+  @ApiOperation({ summary: 'Obter informações do tutelado' })
+  @ApiResponse({ status: 200, description: 'Informações do tutelado' })
+  @ApiResponse({ status: 404, description: 'Tutelado não encontrado' })
+  async obterInformacoesTutelado(@Req() request: UserRequest) {
+    const userId = request.user.id;
+    return this.tutorService.obterInformacoesTutelado(userId);
   }
 }
