@@ -30,11 +30,21 @@ async function bootstrap() {
   // Configuração CORS
   app.enableCors({
     origin: (origin, callback) => {
-      const allowedOrigins = (configService.get<string>('CORS_ORIGINS') || '').split(',').map(o => o.trim());
-      allowedOrigins.push('https://www.qprospekta.com', 'https://qprospekta.com');
+      // Use Set para garantir valores únicos
+      const allowedOriginsFromEnv = (configService.get<string>('CORS_ORIGINS') || '')
+        .split(',')
+        .map(o => o.trim())
+        .filter(Boolean);
       
-      // Durante desenvolvimento ou sem origem (como em requisições diretas)
-      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      const allowedOriginsSet = new Set([
+        ...allowedOriginsFromEnv, 
+        'https://www.qprospekta.com', 
+        'https://qprospekta.com'
+      ]);
+      
+      const allowedOrigins = Array.from(allowedOriginsSet);
+      
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         console.warn(`Origem bloqueada pelo CORS: ${origin}`);
