@@ -11,6 +11,8 @@ import { Veiculo } from './entities/veiculo.entity';
 import { Portador } from '../portador/entities/portador.entity';
 import { Tutor } from '../tutor/entities/tutor.entity';
 import { Tutelado } from '../tutor/entities/tutelado.entity';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { extname } from 'path';
 
 @Injectable()
 export class VeiculoService {
@@ -110,16 +112,70 @@ export class VeiculoService {
 
     // Processar imagens se fornecidas
     if (images) {
-      // Implementar lógica para salvar as imagens em uma pasta e armazenar os caminhos
-      // Por exemplo:
-      if (images.crlvImagem) {
-        const crlvImagePath = `uploads/veiculos/${placa}/crlv_${Date.now()}.${images.crlvImagem.originalname.split('.').pop()}`;
-        // Código para salvar o arquivo em disco
-        // fs.writeFileSync(crlvImagePath, images.crlvImagem.buffer);
-        veiculo.crlvImagePath = crlvImagePath;
+      console.log('Processando imagens para veículo placa:', placa);
+
+      // Criar diretório se não existir
+      const dir = `./uploads/veiculos/${placa}`;
+      if (!existsSync(dir)) {
+        console.log('Criando diretório:', dir);
+        mkdirSync(dir, { recursive: true });
       }
 
-      // Repetir para as outras imagens...
+      // Salvar CRLV
+      if (images.crlvImagem) {
+        console.log('Salvando CRLV:', images.crlvImagem.originalname);
+        const filename = `crlv_${Date.now()}${extname(images.crlvImagem.originalname)}`;
+        const filepath = `${dir}/${filename}`;
+
+        try {
+          writeFileSync(filepath, images.crlvImagem.buffer);
+          veiculo.crlvImagePath = `uploads/veiculos/${placa}/${filename}`;
+          console.log('CRLV salvo com sucesso em:', filepath);
+        } catch (error) {
+          console.error('Erro ao salvar CRLV:', error);
+        }
+      }
+
+      // Salvar ANTT
+      if (images.anttImagem && images.anttImagem.buffer) {
+        const filename = `antt_${Date.now()}.${extname(images.anttImagem.originalname)}`;
+        const filepath = `${dir}/${filename}`;
+        writeFileSync(filepath, images.anttImagem.buffer);
+        veiculo.anttImagePath = `uploads/veiculos/${placa}/${filename}`;
+      }
+
+      // Salvar foto da frente
+      if (images.fotoFrente && images.fotoFrente.buffer) {
+        const filename = `frente_${Date.now()}.${extname(images.fotoFrente.originalname)}`;
+        const filepath = `${dir}/${filename}`;
+        writeFileSync(filepath, images.fotoFrente.buffer);
+        veiculo.fotoFrentePath = `uploads/veiculos/${placa}/${filename}`;
+      }
+
+      // Salvar foto traseira
+      if (images.fotoTras && images.fotoTras.buffer) {
+        const filename = `tras_${Date.now()}.${extname(images.fotoTras.originalname)}`;
+        const filepath = `${dir}/${filename}`;
+        writeFileSync(filepath, images.fotoTras.buffer);
+        veiculo.fotoTrasPath = `uploads/veiculos/${placa}/${filename}`;
+      }
+
+      // Adicione as demais imagens com o mesmo padrão
+      if (images.fotoLateralEsquerda && images.fotoLateralEsquerda.buffer) {
+        const filename = `lateral_esq_${Date.now()}.${extname(images.fotoLateralEsquerda.originalname)}`;
+        const filepath = `${dir}/${filename}`;
+        writeFileSync(filepath, images.fotoLateralEsquerda.buffer);
+        veiculo.fotoLateralEsquerdaPath = `uploads/veiculos/${placa}/${filename}`;
+      }
+
+      if (images.fotoLateralDireita && images.fotoLateralDireita.buffer) {
+        const filename = `lateral_dir_${Date.now()}.${extname(images.fotoLateralDireita.originalname)}`;
+        const filepath = `${dir}/${filename}`;
+        writeFileSync(filepath, images.fotoLateralDireita.buffer);
+        veiculo.fotoLateralDireitaPath = `uploads/veiculos/${placa}/${filename}`;
+      }
+
+      // ... continuar para as outras imagens
     }
 
     return this.veiculoRepository.save(veiculo);

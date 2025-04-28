@@ -30,6 +30,7 @@ import {
   ApiOperation,
   ApiResponse,
 } from '@nestjs/swagger';
+import { memoryStorage } from 'multer';
 
 @ApiTags('veiculos')
 @ApiBearerAuth()
@@ -43,17 +44,25 @@ export class VeiculoController {
   @ApiResponse({ status: 201, description: 'Veículo cadastrado com sucesso' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
-    FileFieldsInterceptor([
-      { name: 'crlvImagem', maxCount: 1 },
-      { name: 'anttImagem', maxCount: 1 },
-      { name: 'fotoFrente', maxCount: 1 },
-      { name: 'fotoTras', maxCount: 1 },
-      { name: 'fotoLateralEsquerda', maxCount: 1 },
-      { name: 'fotoLateralDireita', maxCount: 1 },
-      { name: 'fotoTrasAberto', maxCount: 1 },
-      { name: 'fotoBauFechado', maxCount: 1 },
-      { name: 'fotoBauAberto', maxCount: 1 },
-    ]),
+    FileFieldsInterceptor(
+      [
+        { name: 'crlvImagem', maxCount: 1 },
+        { name: 'anttImagem', maxCount: 1 },
+        { name: 'fotoFrente', maxCount: 1 },
+        { name: 'fotoTras', maxCount: 1 },
+        { name: 'fotoLateralEsquerda', maxCount: 1 },
+        { name: 'fotoLateralDireita', maxCount: 1 },
+        { name: 'fotoTrasAberto', maxCount: 1 },
+        { name: 'fotoBauFechado', maxCount: 1 },
+        { name: 'fotoBauAberto', maxCount: 1 },
+      ],
+      {
+        storage: memoryStorage(), // Usar memoryStorage em vez de diskStorage
+        limits: {
+          fileSize: 10 * 1024 * 1024, // 10MB máximo por arquivo
+        },
+      },
+    ),
   )
   async create(
     @Body() rawData: any, // modificamos para receber os dados brutos
@@ -83,6 +92,16 @@ export class VeiculoController {
       fotoBauFechado: files.fotoBauFechado?.[0],
       fotoBauAberto: files.fotoBauAberto?.[0],
     };
+
+    console.log('Detalhes das imagens recebidas:');
+    for (const key in files) {
+      if (files[key] && files[key][0]) {
+        const file = files[key][0];
+        console.log(
+          `${key}: ${file.originalname}, mimetype: ${file.mimetype}, size: ${file.size}B, buffer: ${!!file.buffer}`,
+        );
+      }
+    }
 
     // Converter a string JSON para objeto
     let createVeiculoDto: CreateVeiculoDto;
