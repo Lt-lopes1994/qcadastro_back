@@ -253,7 +253,7 @@ export class TutorService {
   async designarVeiculo(
     tutorId: number,
     designarVeiculoDto: DesignarVeiculoDto,
-  ): Promise<Tutelado> {
+  ): Promise<Veiculo> {
     // Verificar se o tutor existe
     const tutor = await this.tutorRepository.findOne({
       where: { id: tutorId },
@@ -284,10 +284,9 @@ export class TutorService {
       );
     }
 
-    // Designar o veículo ao tutelado
-    tutelado.veiculoDesignadoId = designarVeiculoDto.veiculoId;
-
-    return await this.tuteladoRepository.save(tutelado);
+    // MODIFICADO: Agora atualizamos o veículo, não o tutelado
+    veiculo.tuteladoDesignadoId = designarVeiculoDto.tuteladoId;
+    return await this.veiculoRepository.save(veiculo);
   }
 
   async verificarCpf(cpf: string): Promise<{
@@ -1120,26 +1119,25 @@ export class TutorService {
       ? this.removeDadosSensiveis(tutelado.tutor.user)
       : null;
 
-    // Recuperar veículo se existir
-    let veiculo: Veiculo | Record<string, any> | null = null;
-    if (tutelado.veiculoDesignadoId) {
-      const veiculoCompleto = await this.veiculoRepository.findOne({
-        where: { id: tutelado.veiculoDesignadoId },
-        relations: ['tutor', 'tutor.user'],
-      });
+    // MODIFICADO: Buscar veículos designados para este tutelado
+    const veiculosDesignados = await this.veiculoRepository.find({
+      where: { tuteladoDesignadoId: tutelado.id },
+      relations: ['tutor', 'tutor.user'],
+    });
 
-      if (veiculoCompleto && veiculoCompleto.tutor?.user) {
-        veiculo = {
-          ...veiculoCompleto,
+    // Sanitizar dados de usuário dos tutores de cada veículo
+    const veiculosSanitizados = veiculosDesignados.map((veiculo) => {
+      if (veiculo.tutor?.user) {
+        return {
+          ...veiculo,
           tutor: {
-            ...veiculoCompleto.tutor,
-            user: this.removeDadosSensiveis(veiculoCompleto.tutor.user),
+            ...veiculo.tutor,
+            user: this.removeDadosSensiveis(veiculo.tutor.user),
           },
         };
-      } else {
-        veiculo = veiculoCompleto;
       }
-    }
+      return veiculo;
+    });
 
     return {
       user: sanitizedUser,
@@ -1155,8 +1153,11 @@ export class TutorService {
         user: sanitizedTutorUser,
       },
       tutorUser: sanitizedTutorUser,
-      veiculoDesignado: tutelado.veiculoDesignado,
-      veiculo: veiculo,
+      // MODIFICADO: Retornar a lista de veículos designados
+      veiculosDesignados: veiculosSanitizados,
+      // Para compatibilidade, retornar o primeiro veículo como 'veiculoDesignado'
+      veiculoDesignado:
+        veiculosSanitizados.length > 0 ? veiculosSanitizados[0] : null,
     };
   }
 

@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { Portador } from '../../portador/entities/portador.entity';
 import { Tutor } from '../../tutor/entities/tutor.entity';
+import { Tutelado } from '../../tutor/entities/tutelado.entity';
 
 @Entity()
 export class Veiculo {
@@ -69,22 +70,64 @@ export class Veiculo {
   @Column({ type: 'json', nullable: true })
   extra: any;
 
-  @ManyToOne(() => Portador)
+  // Campos para documentos
+  @Column({ nullable: true })
+  crlvImagePath: string;
+
+  @Column({ nullable: true })
+  anttImagePath: string;
+
+  // Campos para fotos do veículo
+  @Column({ nullable: true })
+  fotoFrentePath: string;
+
+  @Column({ nullable: true })
+  fotoTrasPath: string;
+
+  @Column({ nullable: true })
+  fotoLateralEsquerdaPath: string;
+
+  @Column({ nullable: true })
+  fotoLateralDireitaPath: string;
+
+  @Column({ nullable: true })
+  fotoTrasAbertoPath: string;
+
+  @Column({ nullable: true })
+  fotoBauFechadoPath: string; // Para caminhões
+
+  @Column({ nullable: true })
+  fotoBauAbertoPath: string; // Para caminhões
+
+  // Relação obrigatória com o tutor que cadastrou
+  @ManyToOne(() => Tutor, { nullable: false })
+  @JoinColumn({ name: 'tutorId' })
+  tutor: Tutor;
+
+  @Column()
+  tutorId: number;
+
+  // Relação com o tutelado designado (opcional)
+  @ManyToOne(() => Tutelado, (tutelado) => tutelado.veiculosDesignados, {
+    nullable: true,
+  })
+  @JoinColumn({ name: 'tuteladoDesignadoId' })
+  tuteladoDesignado: Tutelado;
+
+  @Column({ nullable: true })
+  tuteladoDesignadoId: number;
+
+  // Mantendo a relação com portador por compatibilidade, mas pode ser opcional agora
+  @ManyToOne(() => Portador, { nullable: true })
   @JoinColumn({ name: 'portadorId' })
   portador: Portador;
 
-  @Column()
+  @Column({ nullable: true })
   portadorId: number;
 
+  // Campo para armazenar o userId do cadastrante, para fins de auditoria
   @Column()
   userId: number;
-
-  @Column({ nullable: true })
-  tutorId: number;
-
-  @ManyToOne(() => Tutor)
-  @JoinColumn({ name: 'tutorId' })
-  tutor: Tutor;
 
   @CreateDateColumn()
   createdAt: Date;

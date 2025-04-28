@@ -2,12 +2,15 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Portador } from 'src/portador/entities/portador.entity';
 import { Repository } from 'typeorm';
-import type { CreateVeiculoDto } from './dto/create-veiculo.dto';
+import { CreateVeiculoDto } from './dto/create-veiculo.dto';
 import { Veiculo } from './entities/veiculo.entity';
+import { Portador } from '../portador/entities/portador.entity';
+import { Tutor } from '../tutor/entities/tutor.entity';
+import { Tutelado } from '../tutor/entities/tutelado.entity';
 
 @Injectable()
 export class VeiculoService {
@@ -16,23 +19,34 @@ export class VeiculoService {
     private veiculoRepository: Repository<Veiculo>,
     @InjectRepository(Portador)
     private portadorRepository: Repository<Portador>,
+    @InjectRepository(Tutor)
+    private tutorRepository: Repository<Tutor>,
+    @InjectRepository(Tutelado)
+    private tuteladoRepository: Repository<Tutelado>,
   ) {}
 
-  // Modificar o método create para aceitar tutorId
   async create(
     createVeiculoDto: CreateVeiculoDto,
     userId: number,
-    tutorId?: number,
+    images?: {
+      crlvImagem?: Express.Multer.File;
+      anttImagem?: Express.Multer.File;
+      fotoFrente?: Express.Multer.File;
+      fotoTras?: Express.Multer.File;
+      fotoLateralEsquerda?: Express.Multer.File;
+      fotoLateralDireita?: Express.Multer.File;
+      fotoTrasAberto?: Express.Multer.File;
+      fotoBauFechado?: Express.Multer.File;
+      fotoBauAberto?: Express.Multer.File;
+    },
   ): Promise<Veiculo> {
-    // Verificar se o portador existe e pertence ao usuário
-    const portadores = await this.portadorRepository.find({
+    // Verificar se o usuário é um tutor
+    const tutor = await this.tutorRepository.findOne({
       where: { userId },
     });
 
-    if (portadores.length === 0) {
-      throw new BadRequestException(
-        'Você precisa ser um portador cadastrado para registrar veículos',
-      );
+    if (!tutor) {
+      throw new ForbiddenException('Apenas tutores podem cadastrar veículos');
     }
 
     // Verificar se o veículo já está cadastrado
@@ -44,6 +58,23 @@ export class VeiculoService {
       throw new BadRequestException(
         'Veículo com esta placa já está cadastrado',
       );
+    }
+
+    // Verificar se o tutelado designado existe e está vinculado ao tutor
+    let tuteladoDesignado: Tutelado | null = null;
+    if (createVeiculoDto.tuteladoDesignadoId) {
+      tuteladoDesignado = await this.tuteladoRepository.findOne({
+        where: {
+          id: createVeiculoDto.tuteladoDesignadoId,
+          tutorId: tutor.id,
+        },
+      });
+
+      if (!tuteladoDesignado) {
+        throw new BadRequestException(
+          'O tutelado informado não existe ou não está vinculado a você',
+        );
+      }
     }
 
     // Extrair dados do veículo do DTO
@@ -69,91 +100,115 @@ export class VeiculoService {
     veiculo.subSegmento = veiculoPlaca.subSegmento || '';
     veiculo.fipe = veiculoPlaca.fipe;
     veiculo.extra = veiculoPlaca.extra;
-    veiculo.portadorId = portadores[0].id;
+    veiculo.tutorId = tutor.id;
     veiculo.userId = userId;
 
-    // Se fornecido tutorId, adicionar ao veículo
-    if (tutorId) {
-      veiculo.tutorId = tutorId;
+    // Se houver tutelado designado
+    if (tuteladoDesignado) {
+      veiculo.tuteladoDesignadoId = tuteladoDesignado.id;
+    }
+
+    // Processar imagens se fornecidas
+    if (images) {
+      // Implementar lógica para salvar as imagens em uma pasta e armazenar os caminhos
+      // Por exemplo:
+      if (images.crlvImagem) {
+        const crlvImagePath = `uploads/veiculos/${placa}/crlv_${Date.now()}.${images.crlvImagem.originalname.split('.').pop()}`;
+        // Código para salvar o arquivo em disco
+        // fs.writeFileSync(crlvImagePath, images.crlvImagem.buffer);
+        veiculo.crlvImagePath = crlvImagePath;
+      }
+
+      // Repetir para as outras imagens...
     }
 
     return this.veiculoRepository.save(veiculo);
   }
 
   async findAll(): Promise<Veiculo[]> {
-    return this.veiculoRepository.find();
+    return this.veiculoRepository.find({
+      relations: ['tutor', 'tuteladoDesignado'],
+    });
   }
 
   async findByUser(userId: number): Promise<Veiculo[]> {
-    return this.veiculoRepository.find({ where: { userId } });
+    return this.veiculoRepository.find({
+      where: { userId },
+      relations: ['tutor', 'tuteladoDesignado'],
+    });
   }
 
-  async findByPortador(portadorId: number): Promise<Veiculo[]> {
-    return this.veiculoRepository.find({ where: { portadorId } });
-  }
-
-  // Adicionar método para buscar veículos por tutor
   async findByTutor(tutorId: number): Promise<Veiculo[]> {
-    return this.veiculoRepository.find({ where: { tutorId } });
+    return this.veiculoRepository.find({
+      where: { tutorId },
+      relations: ['tuteladoDesignado'],
+    });
+  }
+
+  async findByTutelado(tuteladoId: number): Promise<Veiculo[]> {
+    return this.veiculoRepository.find({
+      where: { tuteladoDesignadoId: tuteladoId },
+      relations: ['tutor'],
+    });
   }
 
   async findOne(id: number): Promise<Veiculo> {
-    const veiculo = await this.veiculoRepository.findOne({ where: { id } });
+    const veiculo = await this.veiculoRepository.findOne({
+      where: { id },
+      relations: ['tutor', 'tuteladoDesignado'],
+    });
+
     if (!veiculo) {
       throw new NotFoundException(`Veículo com ID ${id} não encontrado`);
     }
+
     return veiculo;
   }
 
-  async update(
-    id: number,
-    updateVeiculoDto: Partial<CreateVeiculoDto>,
+  async designarTutelado(
+    veiculoId: number,
+    tuteladoId: number,
+    tutorId: number,
   ): Promise<Veiculo> {
-    const veiculo = await this.findOne(id);
+    // Verificar se o veículo existe e pertence ao tutor
+    const veiculo = await this.veiculoRepository.findOne({
+      where: { id: veiculoId, tutorId },
+    });
 
-    if (updateVeiculoDto.placa && updateVeiculoDto.placa !== veiculo.placa) {
-      const veiculoExistente = await this.veiculoRepository.findOne({
-        where: { placa: updateVeiculoDto.placa },
-      });
-
-      if (veiculoExistente && veiculoExistente.id !== id) {
-        throw new BadRequestException(
-          'Veículo com esta placa já está cadastrado',
-        );
-      }
-
-      veiculo.placa = updateVeiculoDto.placa;
+    if (!veiculo) {
+      throw new NotFoundException(
+        `Veículo com ID ${veiculoId} não encontrado ou não pertence a este tutor`,
+      );
     }
 
-    if (updateVeiculoDto.veiculoPlaca) {
-      const { veiculoPlaca } = updateVeiculoDto;
+    // Verificar se o tutelado existe e está vinculado ao tutor
+    const tutelado = await this.tuteladoRepository.findOne({
+      where: { id: tuteladoId, tutorId },
+    });
 
-      if (veiculoPlaca.marca) veiculo.marca = veiculoPlaca.marca;
-      if (veiculoPlaca.modelo) veiculo.modelo = veiculoPlaca.modelo;
-      if (veiculoPlaca.marcaModelo)
-        veiculo.marcaModelo = veiculoPlaca.marcaModelo;
-      if (veiculoPlaca.submodelo) veiculo.submodelo = veiculoPlaca.submodelo;
-      if (veiculoPlaca.versao) veiculo.versao = veiculoPlaca.versao;
-      if (veiculoPlaca.ano) veiculo.ano = veiculoPlaca.ano;
-      if (veiculoPlaca.anoModelo) veiculo.anoModelo = veiculoPlaca.anoModelo;
-      if (veiculoPlaca.chassi) veiculo.chassi = veiculoPlaca.chassi;
-      if (veiculoPlaca.cor) veiculo.cor = veiculoPlaca.cor;
-      if (veiculoPlaca.municipio) veiculo.municipio = veiculoPlaca.municipio;
-      if (veiculoPlaca.uf) veiculo.uf = veiculoPlaca.uf;
-      if (veiculoPlaca.origem) veiculo.origem = veiculoPlaca.origem;
-      if (veiculoPlaca.situacao) veiculo.situacao = veiculoPlaca.situacao;
-      if (veiculoPlaca.segmento) veiculo.segmento = veiculoPlaca.segmento;
-      if (veiculoPlaca.subSegmento)
-        veiculo.subSegmento = veiculoPlaca.subSegmento;
-      if (veiculoPlaca.fipe) veiculo.fipe = veiculoPlaca.fipe;
-      if (veiculoPlaca.extra) veiculo.extra = veiculoPlaca.extra;
+    if (!tutelado) {
+      throw new NotFoundException(
+        `Tutelado com ID ${tuteladoId} não encontrado ou não está vinculado a este tutor`,
+      );
     }
+
+    // Designar o tutelado
+    veiculo.tuteladoDesignadoId = tuteladoId;
 
     return this.veiculoRepository.save(veiculo);
   }
 
-  async remove(id: number): Promise<void> {
-    const veiculo = await this.findOne(id);
+  async remove(id: number, tutorId: number): Promise<void> {
+    const veiculo = await this.veiculoRepository.findOne({
+      where: { id, tutorId },
+    });
+
+    if (!veiculo) {
+      throw new NotFoundException(
+        `Veículo com ID ${id} não encontrado ou não pertence a este tutor`,
+      );
+    }
+
     await this.veiculoRepository.remove(veiculo);
   }
 }
