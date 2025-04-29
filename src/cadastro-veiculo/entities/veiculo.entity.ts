@@ -6,10 +6,12 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  OneToOne,
 } from 'typeorm';
 import { Portador } from '../../portador/entities/portador.entity';
 import { Tutor } from '../../tutor/entities/tutor.entity';
 import { Tutelado } from '../../tutor/entities/tutelado.entity';
+import { CapacidadeCarga } from '../../capacidade-carga/entities/capacidade-carga.entity';
 
 @Entity()
 export class Veiculo {
@@ -98,6 +100,24 @@ export class Veiculo {
 
   @Column({ nullable: true })
   fotoBauAbertoPath: string; // Para caminhões
+
+  // Novos campos de ativo/inativo
+  @Column({ default: true })
+  ativo: boolean;
+
+  @Column({ nullable: true })
+  motivoDesativacao: string;
+
+  // Relação com capacidade de carga
+  @OneToOne(
+    () => CapacidadeCarga,
+    (capacidadeCarga) => capacidadeCarga.veiculo,
+    {
+      cascade: true,
+      nullable: true,
+    },
+  )
+  capacidadeCarga: CapacidadeCarga;
 
   // Relação obrigatória com o tutor que cadastrou
   @ManyToOne(() => Tutor, { nullable: false })

@@ -249,4 +249,61 @@ export class VeiculoController {
     // em banco de dados, id 0 opera como admin
     return this.veiculoService.remove(id, 0);
   }
+
+  @Post(':id/desativar')
+  @ApiOperation({ summary: 'Desativar veículo' })
+  async desativarVeiculo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('motivo') motivo: string,
+    @Req() request: UserRequest,
+  ): Promise<Veiculo> {
+    // Verificar permissões (apenas admin ou tutor dono do veículo)
+    const userId = request.user.id;
+
+    if (request.user.role !== 'admin') {
+      const tutor = await this.veiculoService['tutorRepository'].findOne({
+        where: { userId },
+      });
+
+      const veiculo = await this.veiculoService.findOne(id);
+
+      if (!tutor || tutor.id !== veiculo.tutorId) {
+        throw new ForbiddenException(
+          'Você não tem permissão para desativar este veículo',
+        );
+      }
+    }
+
+    if (!motivo || motivo.trim() === '') {
+      throw new BadRequestException('O motivo da desativação é obrigatório');
+    }
+
+    return this.veiculoService.desativarVeiculo(id, motivo);
+  }
+
+  @Post(':id/ativar')
+  @ApiOperation({ summary: 'Ativar veículo' })
+  async ativarVeiculo(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: UserRequest,
+  ): Promise<Veiculo> {
+    // Verificar permissões (apenas admin ou tutor dono do veículo)
+    const userId = request.user.id;
+
+    if (request.user.role !== 'admin') {
+      const tutor = await this.veiculoService['tutorRepository'].findOne({
+        where: { userId },
+      });
+
+      const veiculo = await this.veiculoService.findOne(id);
+
+      if (!tutor || tutor.id !== veiculo.tutorId) {
+        throw new ForbiddenException(
+          'Você não tem permissão para ativar este veículo',
+        );
+      }
+    }
+
+    return this.veiculoService.ativarVeiculo(id);
+  }
 }

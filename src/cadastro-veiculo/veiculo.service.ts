@@ -267,4 +267,22 @@ export class VeiculoService {
 
     await this.veiculoRepository.remove(veiculo);
   }
+
+  async ativarVeiculo(id: number): Promise<Veiculo> {
+    const veiculo = await this.findOne(id);
+
+    veiculo.ativo = true;
+    veiculo.motivoDesativacao = '';
+
+    return this.veiculoRepository.save(veiculo);
+  }
+
+  async desativarVeiculo(id: number, motivo: string): Promise<Veiculo> {
+    const veiculo = await this.findOne(id);
+
+    veiculo.ativo = false;
+    veiculo.motivoDesativacao = motivo;
+
+    return this.veiculoRepository.save(veiculo);
+  }
 }

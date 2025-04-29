@@ -34,6 +34,7 @@ import { TutorModule } from './tutor/tutor.module';
 import { Tutor } from './tutor/entities/tutor.entity';
 import { Tutelado } from './tutor/entities/tutelado.entity';
 import { SolicitacaoVinculo } from './tutor/entities/solicitacao-vinculo.entity';
+import { CapacidadeCargaModule } from './capacidade-carga/capacidade-carga.module';
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { SolicitacaoVinculo } from './tutor/entities/solicitacao-vinculo.entity'
     AdminModule,
     PesquisaNetrinModule,
     TutorModule,
+    CapacidadeCargaModule,
   ],
   controllers: [AppController],
   providers: [
