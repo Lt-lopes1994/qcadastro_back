@@ -230,7 +230,7 @@ export class TutorService {
     return tutelado;
   }
 
-  async listarTutelados(tutorId: number): Promise<Tutelado[]> {
+  async listarTutelados(tutorId: number): Promise<any[]> {
     // Verificar se o tutor existe
     const tutor = await this.tutorRepository.findOne({
       where: { id: tutorId },
@@ -241,7 +241,47 @@ export class TutorService {
       throw new NotFoundException(`Tutor com ID ${tutorId} não encontrado`);
     }
 
-    return tutor.tutelados;
+    // Array para armazenar os resultados formatados
+    type TuteladoFormatado = Tutelado & {
+      user: Partial<RegisteredUser> | null;
+      veiculosDesignados: any[];
+    };
+    const tuteladosFormatados: TuteladoFormatado[] = [];
+
+    // Processar cada tutelado para remover dados sensíveis e adicionar veículos
+    for (const tutelado of tutor.tutelados) {
+      // Remover dados sensíveis do usuário
+      const userSanitized = this.removeDadosSensiveis(tutelado.user);
+
+      // Buscar veículos designados para este tutelado
+      const veiculos = await this.veiculoRepository.find({
+        where: { tuteladoDesignadoId: tutelado.id },
+        relations: ['tutor', 'tutor.user'],
+      });
+
+      // Sanitizar dados de usuário dos tutores de cada veículo
+      const veiculosSanitizados = veiculos.map((veiculo) => {
+        if (veiculo.tutor?.user) {
+          return {
+            ...veiculo,
+            tutor: {
+              ...veiculo.tutor,
+              user: this.removeDadosSensiveis(veiculo.tutor.user),
+            },
+          };
+        }
+        return veiculo;
+      });
+
+      // Adicionar ao array de resultados
+      tuteladosFormatados.push({
+        ...tutelado,
+        user: userSanitized as any, // Type assertion to avoid type error
+        veiculosDesignados: veiculosSanitizados as any[], // Type assertion to avoid type error
+      });
+    }
+
+    return tuteladosFormatados;
   }
 
   async listarTodosTutores(): Promise<Tutor[]> {
@@ -1153,17 +1193,17 @@ export class TutorService {
         user: sanitizedTutorUser,
       },
       tutorUser: sanitizedTutorUser,
-      // MODIFICADO: Retornar a lista de veículos designados
-      veiculosDesignados: veiculosSanitizados,
+      // MODIFICADO: Retornar a lista de veículos designados com type assertion
+      veiculosDesignados: veiculosSanitizados as any[],
       // Para compatibilidade, retornar o primeiro veículo como 'veiculoDesignado'
       veiculoDesignado:
-        veiculosSanitizados.length > 0 ? veiculosSanitizados[0] : null,
+        veiculosSanitizados.length > 0 ? (veiculosSanitizados[0] as any) : null,
     };
   }
 
   // Método auxiliar para remover dados sensíveis dos objetos de usuário
   private removeDadosSensiveis(
-    user: RegisteredUser,
+    user: RegisteredUser | null | undefined,
   ): Partial<RegisteredUser> | null {
     if (!user) return null;
 
