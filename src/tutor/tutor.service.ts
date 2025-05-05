@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
@@ -23,6 +24,7 @@ import { SolicitacaoVinculo } from './entities/solicitacao-vinculo.entity';
 import { SolicitacaoVinculoDto } from './dto/solicitacao-vinculo.dto';
 import { RespostaSolicitacaoDto } from './dto/resposta-solicitacao.dto';
 import { StatusSolicitacao } from './entities/status-solicitacao.enum';
+import { TutorEmpresa } from './entities/tutor-empresa.entity';
 
 @Injectable()
 export class TutorService {
@@ -39,6 +41,8 @@ export class TutorService {
     private readonly empresaRepository: Repository<Empresa>,
     @InjectRepository(SolicitacaoVinculo)
     private readonly solicitacaoRepository: Repository<SolicitacaoVinculo>,
+    @InjectRepository(TutorEmpresa)
+    private readonly tutorEmpresaRepository: Repository<TutorEmpresa>,
     private readonly emailService: EmailService,
   ) {}
 
@@ -557,29 +561,97 @@ export class TutorService {
         );
       }
 
-      // Atualizar o tutor com o ID e CNPJ da empresa (sempre no formato somente números)
-      tutor.empresaId = vincularEmpresaDto.empresaId;
-      tutor.cnpjEmpresa = empresa.cnpj.replace(/[^\d]/g, ''); // Remover todos caracteres não numéricos
+      // Verificar se esta vinculação já existe
+      const vinculoExistente = (await this.tutorEmpresaRepository.findOne({
+        where: {
+          tutorId: tutor.id,
+          empresaId: vincularEmpresaDto.empresaId,
+          isActive: true,
+        },
+      })) as TutorEmpresa | null;
 
-      const tutorAtualizado = await this.tutorRepository.save(tutor);
+      if (vinculoExistente) {
+        // Se o vínculo já existir e estiver ativo, apenas retornamos o tutor
+        console.log('Vínculo já existe, retornando tutor existente');
+        return tutor;
+      }
 
-      // Carregar a relação com a empresa para a resposta
-      const tutorComEmpresa = await this.tutorRepository.findOne({
-        where: { id: tutorAtualizado.id },
-        relations: ['empresa'],
+      // Buscar vínculo desativado
+      const vinculoDesativado = await this.tutorEmpresaRepository.findOne({
+        where: {
+          tutorId: tutor.id,
+          empresaId: vincularEmpresaDto.empresaId,
+          isActive: false,
+        },
       });
 
-      if (!tutorComEmpresa) {
+      // Se já existir um vínculo desativado, reativamos ele
+      if (vinculoDesativado) {
+        vinculoDesativado.isActive = true;
+        await this.tutorEmpresaRepository.save(vinculoDesativado);
+      } else {
+        // Criar um novo vínculo
+        const novoVinculo = this.tutorEmpresaRepository.create({
+          tutorId: tutor.id,
+          empresaId: vincularEmpresaDto.empresaId,
+          isActive: true,
+        });
+        await this.tutorEmpresaRepository.save(novoVinculo);
+      }
+
+      // Carregar o tutor com suas relações de empresas
+      const tutorAtualizado = await this.tutorRepository.findOne({
+        where: { id: tutor.id },
+        relations: ['empresaVinculos', 'empresaVinculos.empresa'],
+      });
+
+      if (!tutorAtualizado) {
         throw new NotFoundException(
-          `Tutor com ID ${tutorAtualizado.id} não encontrado ao carregar relações`,
+          `Tutor com ID ${tutor.id} não encontrado ao carregar relações`,
         );
       }
 
-      return tutorComEmpresa;
+      return tutorAtualizado;
     } catch (error) {
       console.error('ERRO AO VINCULAR EMPRESA:', error);
       throw error;
     }
+  }
+
+  async listarEmpresasVinculadas(tutorId: number): Promise<Empresa[]> {
+    const tutor = await this.tutorRepository.findOne({
+      where: { id: tutorId },
+      relations: ['empresaVinculos', 'empresaVinculos.empresa'],
+    });
+
+    if (!tutor) {
+      throw new NotFoundException(`Tutor com ID ${tutorId} não encontrado`);
+    }
+
+    // Filtrar apenas vínculos ativos e mapear para retornar as empresas
+    return tutor.empresaVinculos
+      .filter((vinculo) => vinculo.isActive)
+      .map((vinculo) => vinculo.empresa);
+  }
+
+  async desvincularEmpresa(tutorId: number, empresaId: number): Promise<void> {
+    const vinculo = await this.tutorEmpresaRepository.findOne({
+      where: {
+        tutorId,
+        empresaId,
+        isActive: true,
+      },
+    });
+
+    if (!vinculo) {
+      throw new NotFoundException(
+        `Vínculo entre tutor ${tutorId} e empresa ${empresaId} não encontrado`,
+      );
+    }
+
+    // Desativar o vínculo em vez de excluí-lo
+    vinculo.isActive = false;
+    await this.tutorEmpresaRepository.save(vinculo);
   }
 
   async assinarContrato(tutorId: number): Promise<Tutor> {
@@ -758,12 +830,8 @@ export class TutorService {
           tutelado.tutorId = tutor.id;
           tutelado.status = TuteladoStatus.ATIVO;
 
-          // Salvar tutelado com método explícito de atualização
-          const tuteladoSalvo = await this.tuteladoRepository.save({
-            ...tutelado,
-            tutorId: tutor.id,
-            status: TuteladoStatus.ATIVO,
-          });
+          // Salvar tutelado - não precisamos espalhar o objeto e redefinir as propriedades
+          const tuteladoSalvo = await this.tuteladoRepository.save(tutelado);
 
           console.log(
             `Tutelado atualizado com sucesso: ${JSON.stringify(tuteladoSalvo)}`,
@@ -972,7 +1040,7 @@ export class TutorService {
         formatoFormatado,
       });
 
-      // Busca tutores pelo CNPJ usando consulta SQL para obter todos os dados relacionados
+      // Busca tutores pelo CNPJ usando a nova estrutura de relacionamento
       const result = await this.tutorRepository.query(
         `SELECT
           t.id AS tutor_id,
@@ -992,8 +1060,6 @@ export class TutorService {
           t.updatedAt AS tutor_updated,
           t.assinadoContrato,
           t.dataAssinaturaContrato,
-          t.empresaId,
-          t.cnpjEmpresa,
           rs.id AS user_id,
           rs.firstName,
           rs.lastName,
@@ -1031,13 +1097,15 @@ export class TutorService {
           tutores t
         JOIN
           registered_user rs ON t.userId = rs.id
-        LEFT JOIN
-          empresa e ON t.empresaId = e.id
+        JOIN
+          tutor_empresas te ON t.id = te.tutorId AND te.isActive = true
+        JOIN
+          empresa e ON te.empresaId = e.id
         WHERE
-          t.cnpjEmpresa = ?
-          OR t.cnpjEmpresa = ?
-          OR t.cnpjEmpresa = ?
-          OR REPLACE(t.cnpjEmpresa, '.', '') = ?
+          e.cnpj = ?
+          OR e.cnpj = ?
+          OR e.cnpj = ?
+          OR REPLACE(e.cnpj, '.', '') = ?
         `,
         [formatoPadrao, formatoNumerico, formatoFormatado, formatoNumerico],
       );
@@ -1053,7 +1121,7 @@ export class TutorService {
       const dadosFormatados = result.map((dadosBrutos) => {
         // Dados do tutor
         const tutor = {
-          id: dadosBrutos.tutor_id, // Usando o alias correto
+          id: dadosBrutos.tutor_id,
           userId: dadosBrutos.userId,
           scoreCredito: dadosBrutos.scoreCredito,
           status: dadosBrutos.status,
@@ -1070,13 +1138,11 @@ export class TutorService {
           updatedAt: dadosBrutos.tutor_updated,
           assinadoContrato: dadosBrutos.assinadoContrato,
           dataAssinaturaContrato: dadosBrutos.dataAssinaturaContrato,
-          empresaId: dadosBrutos.empresaId,
-          cnpjEmpresa: dadosBrutos.cnpjEmpresa,
         };
 
         // Dados do usuário (excluindo campos sensíveis)
         const usuario = {
-          id: dadosBrutos.user_id, // Usando o alias correto
+          id: dadosBrutos.user_id,
           firstName: dadosBrutos.firstName,
           lastName: dadosBrutos.lastName,
           cpf: dadosBrutos.cpf,
@@ -1092,30 +1158,28 @@ export class TutorService {
         };
 
         // Dados da empresa
-        const empresa = dadosBrutos.empresaId
-          ? {
-              id: dadosBrutos.empresa_id, // Usando o alias correto
-              cnpj: dadosBrutos.cnpj,
-              razaoSocial: dadosBrutos.razaoSocial,
-              nomeFantasia: dadosBrutos.nomeFantasia,
-              naturezaJuridica: dadosBrutos.naturezaJuridica,
-              logradouro: dadosBrutos.logradouro,
-              numero: dadosBrutos.numero,
-              complemento: dadosBrutos.complemento,
-              bairro: dadosBrutos.bairro,
-              municipio: dadosBrutos.municipio,
-              cep: dadosBrutos.cep,
-              uf: dadosBrutos.uf,
-              telefone: dadosBrutos.telefone,
-              situacaoCadastral: dadosBrutos.situacaoCadastral,
-              dataInicioAtividade: dadosBrutos.dataInicioAtividade,
-              atividadeEconomica: dadosBrutos.atividadeEconomica,
-              porte: dadosBrutos.porte,
-              capitalSocial: dadosBrutos.capitalSocial,
-              urlComprovante: dadosBrutos.urlComprovante,
-              logoPath: dadosBrutos.logoPath,
-            }
-          : null;
+        const empresa = {
+          id: dadosBrutos.empresa_id,
+          cnpj: dadosBrutos.cnpj,
+          razaoSocial: dadosBrutos.razaoSocial,
+          nomeFantasia: dadosBrutos.nomeFantasia,
+          naturezaJuridica: dadosBrutos.naturezaJuridica,
+          logradouro: dadosBrutos.logradouro,
+          numero: dadosBrutos.numero,
+          complemento: dadosBrutos.complemento,
+          bairro: dadosBrutos.bairro,
+          municipio: dadosBrutos.municipio,
+          cep: dadosBrutos.cep,
+          uf: dadosBrutos.uf,
+          telefone: dadosBrutos.telefone,
+          situacaoCadastral: dadosBrutos.situacaoCadastral,
+          dataInicioAtividade: dadosBrutos.dataInicioAtividade,
+          atividadeEconomica: dadosBrutos.atividadeEconomica,
+          porte: dadosBrutos.porte,
+          capitalSocial: dadosBrutos.capitalSocial,
+          urlComprovante: dadosBrutos.urlComprovante,
+          logoPath: dadosBrutos.logoPath,
+        };
 
         return {
           tutor,

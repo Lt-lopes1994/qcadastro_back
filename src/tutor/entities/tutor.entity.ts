@@ -8,7 +8,7 @@ import {
 } from 'typeorm';
 import { RegisteredUser } from '../../user/entity/user.entity';
 import { Tutelado } from './tutelado.entity';
-import { Empresa } from '../../empresa/entities/empresa.entity';
+import { TutorEmpresa } from './tutor-empresa.entity';
 
 export enum TutorStatus {
   PENDENTE = 'PENDENTE',
@@ -67,16 +67,6 @@ export class Tutor {
   @Column({ nullable: true })
   dataAssinaturaContrato: Date;
 
-  @Column({ nullable: true })
-  empresaId: number;
-
-  @Column({ nullable: true })
-  cnpjEmpresa: string;
-
-  @ManyToOne(() => Empresa, { nullable: true })
-  @JoinColumn({ name: 'empresaId' })
-  empresa: Empresa;
-
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 
@@ -93,4 +83,7 @@ export class Tutor {
 
   @OneToMany(() => Tutelado, (tutelado) => tutelado.tutor)
   tutelados: Tutelado[];
+
+  @OneToMany(() => TutorEmpresa, (tutorEmpresa) => tutorEmpresa.tutor)
+  empresaVinculos: TutorEmpresa[];
 }

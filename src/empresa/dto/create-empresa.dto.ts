@@ -1,5 +1,11 @@
 // src/empresa/dto/create-empresa.dto.ts
-import { IsNotEmpty, IsString, IsEmail, IsOptional } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsEmail,
+  IsOptional,
+  ValidateIf,
+} from 'class-validator';
 
 export class CreateEmpresaDto {
   @IsNotEmpty()
@@ -46,7 +52,11 @@ export class CreateEmpresaDto {
   @IsString()
   uf: string;
 
-  @IsNotEmpty()
+  @IsOptional()
+  @ValidateIf(
+    (o: CreateEmpresaDto) =>
+      o.email !== null && o.email !== undefined && o.email.trim() !== '',
+  )
   @IsEmail()
   email: string;
 

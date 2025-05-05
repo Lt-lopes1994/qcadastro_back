@@ -4,7 +4,6 @@
 import {
   Injectable,
   BadRequestException,
-  ConflictException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -16,43 +15,61 @@ import { CreateDadosBancariosDto } from '../dto/create-dados-bancarios.dto';
 import { FileStorageService } from '../../portador/services/file-storage.service';
 import { SecurityService } from '../../security/security.service';
 import { LoggerService } from 'src/logger/service/logger.service';
+import { TutorService } from '../../tutor/tutor.service';
 
 @Injectable()
 export class EmpresaService {
   constructor(
     @InjectRepository(Empresa)
-    private empresaRepository: Repository<Empresa>,
+    private readonly empresaRepository: Repository<Empresa>,
     @InjectRepository(DadosBancarios)
-    private dadosBancariosRepository: Repository<DadosBancarios>,
-    private fileStorageService: FileStorageService,
-    private securityService: SecurityService,
+    private readonly dadosBancariosRepository: Repository<DadosBancarios>,
+    private readonly fileStorageService: FileStorageService,
+    private readonly securityService: SecurityService,
     private readonly loggerService: LoggerService,
+    private readonly tutorService: TutorService, // Adicione o TutorService
   ) {}
 
   async createDadosEmpresa(
     createEmpresaDto: CreateEmpresaDto,
     userId: number,
   ): Promise<Empresa> {
-    const empresaExistente = await this.empresaRepository.findOne({
-      where: { cnpj: createEmpresaDto.cnpj },
-    });
-
-    if (empresaExistente) {
-      throw new ConflictException('CNPJ já cadastrado');
-    }
-
-    // Validar e ajustar o capitalSocial
-
+    // Sanitizar dados de entrada
     const empresaSanitizada = this.sanitizarDados(createEmpresaDto);
 
-    console.log('empresaSanitizada', empresaSanitizada);
-
+    // Criar e salvar a empresa
     const empresa = this.empresaRepository.create({
       ...empresaSanitizada,
       userId,
     });
 
-    return await this.empresaRepository.save(empresa);
+    const savedEmpresa = await this.empresaRepository.save(empresa);
+
+    // Verificar se o usuário é um tutor e fazer o vínculo automático
+    try {
+      // Tente buscar o tutor pelo userId
+      const tutor = await this.tutorService.findTutorByUserId(userId);
+
+      if (tutor) {
+        // Usuário é um tutor, faça a vinculação
+        console.log(
+          `Usuário ${userId} é um tutor, vinculando empresa ${savedEmpresa.id}`,
+        );
+
+        await this.tutorService.vincularEmpresa(
+          userId,
+          { empresaId: savedEmpresa.id },
+          true, // Indica que estamos usando userId, não o ID do tutor
+        );
+      }
+    } catch (error) {
+      // Se ocorrer um erro (ex: usuário não é tutor), apenas ignore e prossiga
+      if (!(error instanceof NotFoundException)) {
+        console.error('Erro ao tentar vincular tutor à empresa:', error);
+      }
+    }
+
+    return savedEmpresa;
   }
 
   async deleteDadosEmpresa(idEmpresa: number, userId: number) {

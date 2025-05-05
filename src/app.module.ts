@@ -35,6 +35,8 @@ import { Tutor } from './tutor/entities/tutor.entity';
 import { Tutelado } from './tutor/entities/tutelado.entity';
 import { SolicitacaoVinculo } from './tutor/entities/solicitacao-vinculo.entity';
 import { CapacidadeCargaModule } from './capacidade-carga/capacidade-carga.module';
+import { CapacidadeCarga } from './capacidade-carga/entities/capacidade-carga.entity';
+import { TutorEmpresa } from './tutor/entities/tutor-empresa.entity';
 
 @Module({
   imports: [
@@ -69,6 +71,8 @@ import { CapacidadeCargaModule } from './capacidade-carga/capacidade-carga.modul
           Tutor,
           Tutelado,
           SolicitacaoVinculo,
+          CapacidadeCarga,
+          TutorEmpresa,
         ],
         logging: true,
         synchronize: false,

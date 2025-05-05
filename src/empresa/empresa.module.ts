@@ -9,6 +9,8 @@ import { DadosBancarios } from './entities/dados-bancarios.entity';
 import { SecurityModule } from '../security/security.module';
 import { FileStorageService } from '../portador/services/file-storage.service';
 import { LoggerModule } from '../logger/logger.module';
+import { TutorModule } from '../tutor/tutor.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([Empresa, DadosBancarios]),
@@ -19,6 +21,7 @@ import { LoggerModule } from '../logger/logger.module';
     }),
     SecurityModule,
     LoggerModule,
+    TutorModule,
   ],
   controllers: [EmpresaController],
   providers: [EmpresaService, FileStorageService],

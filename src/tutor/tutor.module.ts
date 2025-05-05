@@ -9,6 +9,7 @@ import { Veiculo } from '../cadastro-veiculo/entities/veiculo.entity';
 import { EmailModule } from 'src/email/email.module';
 import { Empresa } from '../empresa/entities/empresa.entity';
 import { SolicitacaoVinculo } from './entities/solicitacao-vinculo.entity';
+import { TutorEmpresa } from './entities/tutor-empresa.entity';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { SolicitacaoVinculo } from './entities/solicitacao-vinculo.entity';
       Veiculo,
       Empresa,
       SolicitacaoVinculo,
+      TutorEmpresa,
     ]),
     EmailModule,
   ],
