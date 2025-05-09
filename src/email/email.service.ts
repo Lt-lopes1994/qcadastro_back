@@ -294,4 +294,49 @@ export class EmailService {
       throw new Error('Falha ao enviar email de solicitação');
     }
   }
+
+  async sendTuteladoDesvinculacaoEmail(
+    to: string,
+    data: {
+      tuteladoName: string;
+      tutorName: string;
+      htmlContent: string;
+      plainText: string;
+    },
+  ): Promise<void> {
+    const payload = {
+      api_user: this.apiUser,
+      api_key: this.apiKey,
+      to: [
+        {
+          email: to,
+          name: data.tuteladoName || to.split('@')[0],
+        },
+      ],
+      from: {
+        name: this.fromName,
+        email: this.fromEmail,
+        reply_to: this.replyTo,
+      },
+      subject: `Desvinculação de Tutor - QProspekta`,
+      html: data.htmlContent,
+      text: data.plainText,
+      campanhaid: `desvinculacao-tutor-${new Date().getTime()}`,
+    };
+
+    try {
+      const response = await axios.post(this.apiUrl, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.data.status !== 'ok') {
+        throw new Error('Falha ao enviar email');
+      }
+    } catch (error) {
+      console.error('Erro ao enviar e-mail de desvinculação:', error);
+      throw new Error('Falha ao enviar email de desvinculação');
+    }
+  }
 }

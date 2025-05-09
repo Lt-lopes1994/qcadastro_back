@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategies';
 import { AuthController } from './auth.controller';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AuditoriaModule } from '../auditoria/auditoria.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         },
       }),
     }),
+    AuditoriaModule,
   ],
   providers: [AuthService, JwtStrategy],
   controllers: [AuthController],

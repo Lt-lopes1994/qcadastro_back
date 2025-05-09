@@ -15,6 +15,7 @@ import {
   UseInterceptors,
   UploadedFiles,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../security/guards/jwt-auth.guard';
@@ -28,8 +29,10 @@ import {
   ApiConsumes,
   ApiOperation,
   ApiResponse,
+  ApiBody,
 } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
+import { DesativarVeiculoDto } from './dto/desativar-veiculo.dto';
 
 @ApiTags('veiculos')
 @ApiBearerAuth()
@@ -139,7 +142,10 @@ export class VeiculoController {
 
   @Get('tutor')
   @ApiOperation({ summary: 'Listar veículos do tutor' })
-  async findByTutor(@Req() request: UserRequest): Promise<Veiculo[]> {
+  async findByTutor(
+    @Req() request: UserRequest,
+    @Query('ativo') ativo?: string, // Parâmetro de query opcional
+  ): Promise<Veiculo[]> {
     const userId = request.user.id;
     // Buscar o tutor associado ao usuário
     const tutor = await this.veiculoService['tutorRepository'].findOne({
@@ -150,7 +156,14 @@ export class VeiculoController {
       throw new ForbiddenException('Você não está registrado como tutor');
     }
 
-    return this.veiculoService.findByTutor(tutor.id);
+    // Se ativo não for especificado, traz todos
+    // Se for especificado, converte para boolean
+    let ativoFilter: boolean | undefined;
+    if (ativo !== undefined) {
+      ativoFilter = ativo.toLowerCase() === 'true';
+    }
+
+    return this.veiculoService.findByTutor(tutor.id, ativoFilter);
   }
 
   @Get('tutelado')
@@ -224,6 +237,35 @@ export class VeiculoController {
     );
   }
 
+  @Post(':id/desvincular-tutelado')
+  @ApiOperation({ summary: 'Desvincular veículo de um tutelado' })
+  async desvincularTutelado(
+    @Param('id', ParseIntPipe) veiculoId: number,
+    @Req() request: UserRequest,
+  ): Promise<Veiculo> {
+    // Verificar permissões (apenas admin ou tutor dono do veículo)
+    const userId = request.user.id;
+
+    if (request.user.role !== 'admin') {
+      const tutor = await this.veiculoService['tutorRepository'].findOne({
+        where: { userId },
+      });
+
+      const veiculo = await this.veiculoService.findOne(veiculoId);
+
+      if (!tutor || tutor.id !== veiculo.tutorId) {
+        throw new ForbiddenException(
+          'Você não tem permissão para desvincular este veículo',
+        );
+      }
+    }
+
+    const veiculoAtualizado =
+      await this.veiculoService.desvincularTutelado(veiculoId);
+    console.log('Veículo após desvinculação:', veiculoAtualizado);
+    return veiculoAtualizado;
+  }
+
   @Delete(':id')
   @ApiOperation({ summary: 'Remover veículo' })
   async remove(
@@ -252,9 +294,10 @@ export class VeiculoController {
 
   @Post(':id/desativar')
   @ApiOperation({ summary: 'Desativar veículo' })
+  @ApiBody({ type: DesativarVeiculoDto })
   async desativarVeiculo(
     @Param('id', ParseIntPipe) id: number,
-    @Body('motivo') motivo: string,
+    @Body() desativarDto: DesativarVeiculoDto,
     @Req() request: UserRequest,
   ): Promise<Veiculo> {
     // Verificar permissões (apenas admin ou tutor dono do veículo)
@@ -274,11 +317,7 @@ export class VeiculoController {
       }
     }
 
-    if (!motivo || motivo.trim() === '') {
-      throw new BadRequestException('O motivo da desativação é obrigatório');
-    }
-
-    return this.veiculoService.desativarVeiculo(id, motivo);
+    return this.veiculoService.desativarVeiculo(id, desativarDto.motivo);
   }
 
   @Post(':id/ativar')

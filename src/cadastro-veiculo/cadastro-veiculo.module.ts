@@ -10,6 +10,7 @@ import { Tutelado } from '../tutor/entities/tutelado.entity';
 import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { AuditoriaModule } from '../auditoria/auditoria.module'; // Importe o AuditoriaModule
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { extname } from 'path';
         },
       }),
     }),
+    AuditoriaModule, // Adicione esta linha para importar o módulo
   ],
   controllers: [VeiculoController],
   providers: [VeiculoService],

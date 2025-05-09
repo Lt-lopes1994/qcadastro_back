@@ -108,6 +108,9 @@ export class Veiculo {
   @Column({ nullable: true })
   motivoDesativacao: string;
 
+  @Column({ nullable: true, type: 'timestamp' })
+  inativadoEm: Date;
+
   // Relação com capacidade de carga
   @OneToOne(
     () => CapacidadeCarga,
@@ -135,7 +138,7 @@ export class Veiculo {
   tuteladoDesignado: Tutelado;
 
   @Column({ nullable: true })
-  tuteladoDesignadoId: number;
+  tuteladoDesignadoId: number | null;
 
   // Mantendo a relação com portador por compatibilidade, mas pode ser opcional agora
   @ManyToOne(() => Portador, { nullable: true })

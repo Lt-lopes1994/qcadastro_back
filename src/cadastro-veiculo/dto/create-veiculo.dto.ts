@@ -145,5 +145,5 @@ export class CreateVeiculoDto {
   @ApiProperty({ description: 'ID do tutelado a ser designado (opcional)' })
   @IsNumber()
   @IsOptional()
-  tuteladoDesignadoId?: number;
+  tuteladoDesignadoId?: number | null;
 }

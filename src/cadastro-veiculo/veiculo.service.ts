@@ -13,6 +13,8 @@ import { Tutor } from '../tutor/entities/tutor.entity';
 import { Tutelado } from '../tutor/entities/tutelado.entity';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { extname } from 'path';
+import { AuditoriaService } from '../auditoria/auditoria.service';
+import { TipoAcao } from '../auditoria/entities/auditoria-acao.entity';
 
 @Injectable()
 export class VeiculoService {
@@ -25,6 +27,7 @@ export class VeiculoService {
     private tutorRepository: Repository<Tutor>,
     @InjectRepository(Tutelado)
     private tuteladoRepository: Repository<Tutelado>,
+    private readonly auditoriaService: AuditoriaService,
   ) {}
 
   async create(
@@ -194,9 +197,21 @@ export class VeiculoService {
     });
   }
 
-  async findByTutor(tutorId: number): Promise<Veiculo[]> {
+  async findByTutor(tutorId: number, ativo?: boolean): Promise<Veiculo[]> {
+    interface VeiculoWhereClause {
+      tutorId: number;
+      ativo?: boolean;
+    }
+
+    const whereClause: VeiculoWhereClause = { tutorId };
+
+    // Adiciona condição de ativo apenas se o parâmetro foi especificado
+    if (ativo !== undefined) {
+      whereClause.ativo = ativo;
+    }
+
     return this.veiculoRepository.find({
-      where: { tutorId },
+      where: whereClause,
       relations: ['tuteladoDesignado'],
     });
   }
@@ -225,10 +240,12 @@ export class VeiculoService {
     veiculoId: number,
     tuteladoId: number,
     tutorId: number,
+    usuarioId?: number,
   ): Promise<Veiculo> {
     // Verificar se o veículo existe e pertence ao tutor
     const veiculo = await this.veiculoRepository.findOne({
       where: { id: veiculoId, tutorId },
+      relations: ['tuteladoDesignado'],
     });
 
     if (!veiculo) {
@@ -248,10 +265,89 @@ export class VeiculoService {
       );
     }
 
+    // Guardar estado anterior para auditoria
+    const estadoAnterior = {
+      tuteladoDesignadoId: veiculo.tuteladoDesignadoId,
+      tuteladoAnterior: veiculo.tuteladoDesignado
+        ? {
+            id: veiculo.tuteladoDesignado.id,
+            userId: veiculo.tuteladoDesignado.userId,
+          }
+        : null,
+    };
+
     // Designar o tutelado
     veiculo.tuteladoDesignadoId = tuteladoId;
+    const veiculoAtualizado = await this.veiculoRepository.save(veiculo);
 
-    return this.veiculoRepository.save(veiculo);
+    // Registrar na auditoria
+    await this.auditoriaService.registrarAcao({
+      tipoAcao: TipoAcao.DESIGNACAO_VEICULO,
+      entidadeOrigemTipo: 'veiculo',
+      entidadeOrigemId: veiculoId,
+      entidadeDestinoTipo: 'tutelado',
+      entidadeDestinoId: tuteladoId,
+      usuarioId: usuarioId || tutorId,
+      dadosAnteriores: estadoAnterior,
+      dadosPosteriores: {
+        tuteladoDesignadoId: veiculoAtualizado.tuteladoDesignadoId,
+      },
+      observacao: `Veículo de placa ${veiculo.placa} designado para o tutelado ID ${tuteladoId}`,
+    });
+
+    return veiculoAtualizado;
+  }
+
+  async desvincularTutelado(
+    veiculoId: number,
+    usuarioId?: number,
+  ): Promise<Veiculo> {
+    // Verificar se o veículo existe
+    const veiculo = await this.findOne(veiculoId);
+
+    if (!veiculo) {
+      throw new NotFoundException(`Veículo com ID ${veiculoId} não encontrado`);
+    }
+
+    // Verificar se o veículo está vinculado a algum tutelado
+    if (!veiculo.tuteladoDesignadoId) {
+      throw new BadRequestException(
+        'Este veículo não está designado a nenhum tutelado',
+      );
+    }
+
+    // Guardar estado anterior para auditoria
+    const tuteladoIdAnterior = veiculo.tuteladoDesignadoId;
+
+    // Abordagem mais direta usando query builder para garantir a atualização
+    await this.veiculoRepository
+      .createQueryBuilder()
+      .update(Veiculo)
+      .set({ tuteladoDesignadoId: null })
+      .where('id = :id', { id: veiculoId })
+      .execute();
+
+    // Buscar o veículo atualizado
+    const veiculoAtualizado = await this.findOne(veiculoId);
+
+    // Registrar na auditoria
+    await this.auditoriaService.registrarAcao({
+      tipoAcao: TipoAcao.REMOCAO_DESIGNACAO,
+      entidadeOrigemTipo: 'veiculo',
+      entidadeOrigemId: veiculoId,
+      entidadeDestinoTipo: 'tutelado',
+      entidadeDestinoId: tuteladoIdAnterior,
+      usuarioId: usuarioId || veiculo.tutorId,
+      dadosAnteriores: {
+        tuteladoDesignadoId: tuteladoIdAnterior,
+      },
+      dadosPosteriores: {
+        tuteladoDesignadoId: null,
+      },
+      observacao: `Veículo de placa ${veiculo.placa} desvinculado do tutelado ID ${tuteladoIdAnterior}`,
+    });
+
+    return veiculoAtualizado;
   }
 
   async remove(id: number, tutorId: number): Promise<void> {
@@ -271,6 +367,11 @@ export class VeiculoService {
   async ativarVeiculo(id: number): Promise<Veiculo> {
     const veiculo = await this.findOne(id);
 
+    // Verificar se já está ativo
+    if (veiculo.ativo) {
+      throw new BadRequestException('Veículo já está ativo');
+    }
+
     veiculo.ativo = true;
     veiculo.motivoDesativacao = '';
 
@@ -280,9 +381,26 @@ export class VeiculoService {
   async desativarVeiculo(id: number, motivo: string): Promise<Veiculo> {
     const veiculo = await this.findOne(id);
 
+    // Verificar se já está inativo
+    if (!veiculo.ativo) {
+      throw new BadRequestException('Veículo já está inativo');
+    }
+
+    // Atualizar status e registrar motivo e data
     veiculo.ativo = false;
     veiculo.motivoDesativacao = motivo;
+    veiculo.inativadoEm = new Date();
 
-    return this.veiculoRepository.save(veiculo);
+    // Desvincular de tutelados
+    veiculo.tuteladoDesignadoId = null;
+
+    // Salvar as alterações
+    const veiculoAtualizado = await this.veiculoRepository.save(veiculo);
+
+    console.log(
+      `Veículo ${id} desativado. Motivo: ${motivo}. Data: ${veiculo.inativadoEm.toISOString()}`,
+    );
+
+    return veiculoAtualizado;
   }
 }
