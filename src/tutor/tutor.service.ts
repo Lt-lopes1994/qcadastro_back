@@ -25,6 +25,8 @@ import { SolicitacaoVinculoDto } from './dto/solicitacao-vinculo.dto';
 import { RespostaSolicitacaoDto } from './dto/resposta-solicitacao.dto';
 import { StatusSolicitacao } from './entities/status-solicitacao.enum';
 import { TutorEmpresa } from './entities/tutor-empresa.entity';
+import { AuditoriaService } from '../auditoria/auditoria.service';
+import { TipoAcao } from 'src/auditoria/entities/auditoria-acao.entity';
 
 @Injectable()
 export class TutorService {
@@ -44,6 +46,7 @@ export class TutorService {
     @InjectRepository(TutorEmpresa)
     private readonly tutorEmpresaRepository: Repository<TutorEmpresa>,
     private readonly emailService: EmailService,
+    private readonly auditoriaService: AuditoriaService,
   ) {}
 
   async cadastrarUsuario(
@@ -202,8 +205,83 @@ export class TutorService {
       );
     }
 
-    // Desvincular o tutelado
+    // 1. Desvincula todos os veículos deste tutelado
+    const veiculosDoTutelado = await this.veiculoRepository.find({
+      where: { tuteladoDesignadoId: tuteladoId },
+    });
+
+    if (veiculosDoTutelado.length > 0) {
+      // Usando queryBuilder para atualizar todos os veículos de uma vez
+      await this.veiculoRepository
+        .createQueryBuilder()
+        .update()
+        .set({ tuteladoDesignadoId: null })
+        .where('tuteladoDesignadoId = :tuteladoId', { tuteladoId })
+        .execute();
+
+      // Registrar na auditoria a desvinculação de cada veículo
+      for (const veiculo of veiculosDoTutelado) {
+        await this.auditoriaService.registrarAcao({
+          tipoAcao: TipoAcao.REMOCAO_DESIGNACAO,
+          entidadeOrigemTipo: 'veiculo',
+          entidadeOrigemId: veiculo.id,
+          entidadeDestinoTipo: 'tutelado',
+          entidadeDestinoId: tuteladoId,
+          usuarioId: tutor.userId,
+          dadosAnteriores: { tuteladoDesignadoId: tuteladoId },
+          dadosPosteriores: { tuteladoDesignadoId: null },
+          observacao: `Veículo de placa ${veiculo.placa} desvinculado automaticamente do tutelado ID ${tuteladoId} por desvinculação do tutor`,
+        });
+      }
+    }
+
+    // 2. Atualiza o status de solicitações
+    // Marcar solicitações pendentes como rejeitadas
+    await this.solicitacaoRepository
+      .createQueryBuilder()
+      .update()
+      .set({
+        status: StatusSolicitacao.REJEITADA,
+        dataProcessamento: new Date(),
+      })
+      .where('tuteladoId = :tuteladoId AND status = :statusPendente', {
+        tuteladoId,
+        statusPendente: StatusSolicitacao.PENDENTE,
+      })
+      .execute();
+
+    // 3. Desvincular o tutelado
     tutelado.status = TuteladoStatus.INATIVO;
+    tutelado.tutorId = null as unknown as number;
+
+    // 4. Notificar por email sobre a desvinculação, se o serviço estiver disponível
+    try {
+      const tuteladoUser = await this.userRepository.findOne({
+        where: { id: tutelado.userId },
+      });
+
+      const tutorUser = await this.userRepository.findOne({
+        where: { id: tutor.userId },
+      });
+
+      if (tuteladoUser && tutorUser && this.emailService) {
+        await this.emailService.sendTuteladoDesvinculacaoEmail(
+          tuteladoUser.email,
+          {
+            tuteladoName: `${tuteladoUser.firstName} ${tuteladoUser.lastName}`,
+            tutorName: `${tutorUser.firstName} ${tutorUser.lastName}`,
+            htmlContent: `Você foi desvinculado do tutor ${tutorUser.firstName} ${tutorUser.lastName}.`,
+            plainText: `Você foi desvinculado do tutor ${tutorUser.firstName} ${tutorUser.lastName}.`,
+          },
+        );
+      }
+    } catch (error) {
+      console.error(
+        'Erro ao enviar email de notificação de desvinculação:',
+        error,
+      );
+      // Continuar o processo mesmo se falhar o envio de email
+    }
 
     return await this.tuteladoRepository.save(tutelado);
   }
@@ -234,7 +312,7 @@ export class TutorService {
     return tutelado;
   }
 
-  async listarTutelados(tutorId: number): Promise<any[]> {
+  async listarTutelados(tutorId: number, status?: string): Promise<any[]> {
     // Verificar se o tutor existe
     const tutor = await this.tutorRepository.findOne({
       where: { id: tutorId },
@@ -252,8 +330,15 @@ export class TutorService {
     };
     const tuteladosFormatados: TuteladoFormatado[] = [];
 
+    // Filtrar tutelados por status se o parâmetro for fornecido
+    const tuteladosFiltrados = status
+      ? tutor.tutelados.filter(
+          (tutelado) => tutelado.status === (status as TuteladoStatus),
+        )
+      : tutor.tutelados;
+
     // Processar cada tutelado para remover dados sensíveis e adicionar veículos
-    for (const tutelado of tutor.tutelados) {
+    for (const tutelado of tuteladosFiltrados) {
       // Remover dados sensíveis do usuário
       const userSanitized = this.removeDadosSensiveis(tutelado.user);
 

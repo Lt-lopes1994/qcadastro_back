@@ -151,12 +151,13 @@ export class TutorController {
   }
 
   @Get('tutelados')
-  @ApiOperation({ summary: 'Listar tutelados do tutor atual' })
-  @ApiResponse({ status: 200, description: 'Lista de tutelados' })
+  @ApiOperation({ summary: 'Listar tutelados ativos do tutor atual' })
+  @ApiResponse({ status: 200, description: 'Lista de tutelados ativos' })
   @ApiResponse({ status: 404, description: 'Tutelados não encontrados' })
   async listarTuteladosDoTutor(@Req() request: UserRequest) {
     const tutor = await this.tutorService.findTutorByUserId(request.user.id);
-    return this.tutorService.listarTutelados(tutor.id);
+    // Passar parâmetro adicional para filtrar apenas tutelados ativos
+    return this.tutorService.listarTutelados(tutor.id, 'ATIVO');
   }
 
   @Get('tutelado/perfil')

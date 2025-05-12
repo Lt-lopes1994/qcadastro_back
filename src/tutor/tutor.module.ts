@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TutorController } from './tutor.controller';
 import { TutorService } from './tutor.service';
@@ -10,6 +10,7 @@ import { EmailModule } from 'src/email/email.module';
 import { Empresa } from '../empresa/entities/empresa.entity';
 import { SolicitacaoVinculo } from './entities/solicitacao-vinculo.entity';
 import { TutorEmpresa } from './entities/tutor-empresa.entity';
+import { AuditoriaModule } from '../auditoria/auditoria.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { TutorEmpresa } from './entities/tutor-empresa.entity';
       TutorEmpresa,
     ]),
     EmailModule,
+    forwardRef(() => AuditoriaModule), // Use forwardRef para resolver a dependência circular
   ],
   controllers: [TutorController],
   providers: [TutorService],
