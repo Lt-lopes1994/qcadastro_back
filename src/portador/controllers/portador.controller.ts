@@ -21,12 +21,51 @@ import { PortadorService } from '../services/portador.service';
 import { CreatePortadorDto } from '../dto/create-portador.dto';
 import { JwtAuthGuard } from '../../security/guards/jwt-auth.guard';
 import { UserRequest } from '../../user/interfaces/user-request.interface';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiConsumes,
+  ApiBody,
+  ApiBearerAuth,
+  ApiResponse,
+} from '@nestjs/swagger';
 
+@ApiTags('portadores')
+@ApiBearerAuth()
 @Controller('portadores')
 export class PortadorController {
   constructor(private readonly portadorService: PortadorService) {}
 
   @Post()
+  @ApiOperation({
+    summary: 'Criar novo portador',
+    description: 'Cria um novo portador de veículo com seus documentos',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        cnhNumero: { type: 'string' },
+        cnhCategoria: { type: 'string' },
+        cnhValidade: { type: 'string', format: 'date' },
+        anttNumero: { type: 'string' },
+        anttValidade: { type: 'string', format: 'date' },
+        cpf: { type: 'string' },
+        cnhImagem: { type: 'string', format: 'binary' },
+        anttImagem: { type: 'string', format: 'binary' },
+      },
+      required: [
+        'cnhNumero',
+        'cnhCategoria',
+        'cnhValidade',
+        'cpf',
+        'cnhImagem',
+      ],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Portador criado com sucesso' })
+  @ApiResponse({ status: 400, description: 'Dados inválidos' })
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileFieldsInterceptor([

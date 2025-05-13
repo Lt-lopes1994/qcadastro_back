@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { NestFactory } from '@nestjs/core';
@@ -7,6 +10,16 @@ import helmet from 'helmet';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'; // Adicione esta importação
+
+// Add type declaration for Swagger UI
+declare global {
+  interface Window {
+    ui: {
+      preauthorizeApiKey: (key: string, token: string) => void;
+    };
+  }
+}
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -19,8 +32,10 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
+      transform: true, // Garante que os tipos são convertidos automaticamente
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
     }),
   );
 
@@ -68,6 +83,106 @@ async function bootstrap() {
     prefix: '/uploads',
   });
 
+  // Configuração do Swagger com base no ambiente
+  const environment = configService.get<string>('NODE_ENV', 'development');
+  const isProduction = environment === 'production';
+  const enableSwagger =
+    configService.get<string>('SWAGGER_ENABLED', 'true') === 'true';
+
+  if (enableSwagger) {
+    const config = new DocumentBuilder()
+      .setTitle('QCadastro API')
+      .setDescription('API para sistema de cadastro e gerenciamento')
+      .setVersion('1.0')
+      .addBearerAuth({
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'Insira o token JWT',
+        in: 'header',
+      })
+      .addTag('auth', 'Endpoints de autenticação')
+      .addTag('users', 'Gerenciamento de usuários')
+      .addTag('portadores', 'Gerenciamento de portadores de veículos')
+      .addTag('veiculos', 'Gerenciamento de veículos')
+      .addTag('enderecos', 'Gerenciamento de endereços')
+      .addTag('admin', 'Operações administrativas')
+      .build();
+
+    const document = SwaggerModule.createDocument(app, config);
+
+    // Em produção, podemos adicionar configurações extras de segurança
+    const swaggerOptions = {
+      swaggerOptions: {
+        persistAuthorization: true,
+        plugins: [
+          {
+            // Plugin personalizado para interceptar a resposta de login
+            statePlugins: {
+              spec: {
+                wrapActions: {
+                  executeRequest:
+                    (oriAction) =>
+                    (...args) => {
+                      return oriAction(...args).then(
+                        (res: {
+                          url: string;
+                          status: number;
+                          data: { access_token: any };
+                        }) => {
+                          // Verificar se é a resposta do endpoint de login
+                          const path = res.url?.split('?')[0];
+                          if (
+                            path?.endsWith('/auth/login') &&
+                            res.status === 200 &&
+                            res.data?.access_token
+                          ) {
+                            // Extrair o token e configurar para futuros requests
+                            const token = res.data.access_token;
+                            window.localStorage.setItem(
+                              'swagger_accessToken',
+                              token,
+                            );
+                            window.ui.preauthorizeApiKey('bearerAuth', token);
+                          }
+                          return res;
+                        },
+                      );
+                    },
+                },
+              },
+            },
+          },
+        ],
+        onComplete: () => {
+          // Restaurar token se existir no localStorage
+          const token = window.localStorage.getItem('swagger_accessToken');
+          if (token) {
+            window.ui.preauthorizeApiKey('bearerAuth', token);
+          }
+        },
+      },
+      customSiteTitle: 'QCadastro API Documentation',
+    };
+
+    // Se estiver em produção, adicione proteção básica
+    if (isProduction) {
+      app.use('/api/docs', (req, res, next) => {
+        // Verificação simples com senha básica via query param
+        // Em produção, considere usar JWT ou outro método mais seguro
+        const apiKey =
+          typeof req.query.apiKey === 'string' ? req.query.apiKey : undefined;
+        if (apiKey !== configService.get('SWAGGER_API_KEY')) {
+          res.status(401).send('Não autorizado');
+          return;
+        }
+        next();
+      });
+    }
+
+    SwaggerModule.setup('api/docs', app, document, swaggerOptions);
+  }
+
   const portNumber = process.env.PORT || 3000;
 
   const port = configService.get<number>(
@@ -76,6 +191,7 @@ async function bootstrap() {
   );
   await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
+  console.log(`Swagger documentation: ${await app.getUrl()}/api/docs`);
   console.log(`Environment: ${configService.get('NODE_ENV', 'development')}`);
   console.log(`Database Name: ${configService.get('DB_NAME')}`);
 }

@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsNotEmpty } from 'class-validator';
 
 export class CreateEnderecoDto {
   @IsString({ message: 'O CEP é obrigatório' })
@@ -28,4 +28,8 @@ export class CreateEnderecoDto {
   @IsString({ message: 'O estado é obrigatório' })
   @IsNotEmpty({ message: 'O estado não pode ser vazio' })
   estado: string;
+
+  @IsOptional()
+  @IsNumber()
+  usuarioId?: number;
 }

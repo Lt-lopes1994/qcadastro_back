@@ -29,6 +29,11 @@ import { LoggerModule } from './logger/logger.module';
 import { SystemLog } from './logger/entities/system-log.entity';
 import { AdminModule } from './admin/admin.module';
 import { RolesGuard } from './security/guards/roles.guard';
+import { PesquisaNetrinModule } from './pesquisa-netrin/pesquisa-netrin.module';
+import { TutorModule } from './tutor/tutor.module';
+import { Tutor } from './tutor/entities/tutor.entity';
+import { Tutelado } from './tutor/entities/tutelado.entity';
+import { SolicitacaoVinculo } from './tutor/entities/solicitacao-vinculo.entity';
 
 @Module({
   imports: [
@@ -60,6 +65,9 @@ import { RolesGuard } from './security/guards/roles.guard';
           Empresa,
           DadosBancarios,
           SystemLog,
+          Tutor,
+          Tutelado,
+          SolicitacaoVinculo,
         ],
         logging: true,
         synchronize: false,
@@ -83,6 +91,8 @@ import { RolesGuard } from './security/guards/roles.guard';
     ProcessosJudiciaisModule,
     LoggerModule,
     AdminModule,
+    PesquisaNetrinModule,
+    TutorModule,
   ],
   controllers: [AppController],
   providers: [

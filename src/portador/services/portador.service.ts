@@ -142,7 +142,88 @@ export class PortadorService {
   }
 
   async findAll(): Promise<Portador[]> {
-    return this.portadorRepository.find({ relations: ['user'] });
+    try {
+      // Buscar portadores com relações
+      const portadores = await this.portadorRepository.find({
+        relations: ['user'],
+      });
+
+      // Buscar IDs de usuários únicos dos portadores
+      const userIds = [...new Set(portadores.map((p) => p.userId))];
+
+      // Buscar todos os processos judiciais desses usuários em uma única query
+      const processos = await this.processoRepository
+        .createQueryBuilder('processo')
+        .where('processo.userId IN (:...userIds)', { userIds })
+        .getMany();
+
+      // Organizar processos por userId para acesso rápido
+      const processosPorUsuario = processos.reduce((acc, processo) => {
+        if (!acc[processo.userId]) {
+          acc[processo.userId] = [];
+        }
+        acc[processo.userId].push(processo);
+        return acc;
+      }, {});
+
+      // Remover dados sensíveis e adicionar processos
+      for (const portador of portadores) {
+        if (portador.user) {
+          // Campos a manter do usuário
+          const {
+            id,
+            firstName,
+            lastName,
+            email,
+            phoneNumber,
+            role,
+            isActive,
+            fotoPath,
+            createdAt,
+            updatedAt,
+          } = portador.user;
+
+          // Substituir objeto user com versão filtrada
+          portador.user = {
+            id,
+            firstName,
+            lastName,
+            email,
+            phoneNumber,
+            role,
+            isActive,
+            fotoPath,
+            createdAt,
+            updatedAt,
+            processos: processosPorUsuario[portador.userId] || [],
+          } as unknown as RegisteredUser;
+        }
+
+        // Dados seguros do portador
+        const portadorSanitizado = {
+          id: portador.id,
+          cnhNumero: portador.cnhNumero,
+          cnhCategoria: portador.cnhCategoria,
+          cnhValidade: portador.cnhValidade,
+          anttNumero: portador.anttNumero,
+          anttValidade: portador.anttValidade,
+          nomeCompleto: portador.nomeCompleto,
+          status: portador.status,
+          createdAt: portador.createdAt,
+          updatedAt: portador.updatedAt,
+          user: portador.user,
+        };
+
+        Object.assign(portador, portadorSanitizado);
+      }
+
+      return portadores;
+    } catch (error) {
+      console.error('Erro ao buscar portadores:', error);
+      throw new BadRequestException(
+        'Erro ao buscar portadores: ' + error.message,
+      );
+    }
   }
 
   async findAllNewPortadores(
@@ -226,7 +307,6 @@ export class PortadorService {
         }
       }
 
-      console.log('Portadores encontrados pela query:', portadores.length);
       return portadores;
     } catch (error) {
       console.error('Erro ao buscar portadores:', error);

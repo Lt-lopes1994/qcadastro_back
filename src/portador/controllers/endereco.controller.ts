@@ -26,8 +26,13 @@ export class EnderecoController {
     @Body() createEnderecoDto: CreateEnderecoDto,
     @Req() request: UserRequest,
   ) {
-    // Obter o ID do usuário do token JWT
-    const userId = request.user.id;
+    // Se o usuarioId estiver definido no DTO e o usuário for admin,
+    // use esse ID, caso contrário use o ID do token JWT
+    const userId =
+      createEnderecoDto.usuarioId && request.user.role === 'admin'
+        ? createEnderecoDto.usuarioId
+        : request.user.id;
+
     return this.enderecoService.create(createEnderecoDto, userId);
   }
 
