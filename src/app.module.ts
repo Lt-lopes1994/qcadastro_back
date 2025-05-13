@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-import { ConfigService } from '@nestjs/config';
+import { ConfigService, ConfigModule } from '@nestjs/config';
 import { UserModule } from './user/user.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -34,9 +34,17 @@ import { TutorModule } from './tutor/tutor.module';
 import { Tutor } from './tutor/entities/tutor.entity';
 import { Tutelado } from './tutor/entities/tutelado.entity';
 import { SolicitacaoVinculo } from './tutor/entities/solicitacao-vinculo.entity';
+import { CapacidadeCargaModule } from './capacidade-carga/capacidade-carga.module';
+import { CapacidadeCarga } from './capacidade-carga/entities/capacidade-carga.entity';
+import { TutorEmpresa } from './tutor/entities/tutor-empresa.entity';
+import { AuditoriaModule } from './auditoria/auditoria.module';
+import { AuditoriaAcao } from './auditoria/entities/auditoria-acao.entity';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     AppConfigModule,
     // Proteção contra ataques de força bruta e DDoS
     ThrottlerModule.forRoot([
@@ -46,14 +54,15 @@ import { SolicitacaoVinculo } from './tutor/entities/solicitacao-vinculo.entity'
       },
     ]),
     TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'mysql',
-        host: configService.get<string>('DB_HOST'),
-        port: parseInt(configService.get<string>('DB_PORT', '3306')),
-        username: configService.get<string>('DB_USER'),
-        password: configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('DB_NAME'),
+        host: configService.get('DB_HOST'),
+        port: +configService.get('DB_PORT'),
+        username: configService.get('DB_USER'), // Alterado de DB_USERNAME para DB_USER
+        password: configService.get('DB_PASSWORD'),
+        database: configService.get('DB_NAME'), // Alterado de DB_DATABASE para DB_NAME
         entities: [
           RegisteredUser,
           BlockedIp,
@@ -68,15 +77,20 @@ import { SolicitacaoVinculo } from './tutor/entities/solicitacao-vinculo.entity'
           Tutor,
           Tutelado,
           SolicitacaoVinculo,
+          CapacidadeCarga,
+          TutorEmpresa,
+          AuditoriaAcao, // Certifique-se que esta entidade está incluída
         ],
-        logging: true,
-        synchronize: false,
+        synchronize: configService.get('NODE_ENV') !== 'production',
+        logging: configService.get('NODE_ENV') !== 'production',
         timezone: '+03:00',
         extra: {
           connectionLimit: 10,
           charset: 'utf8mb4',
-          supportBigNumbers: true,
-          bigNumberStrings: true,
+          // Adicionar esta configuração para resolver o aviso do sha256_password
+          authPlugins: {
+            mysql_native_password: () => ({}),
+          },
         },
       }),
     }),
@@ -93,6 +107,8 @@ import { SolicitacaoVinculo } from './tutor/entities/solicitacao-vinculo.entity'
     AdminModule,
     PesquisaNetrinModule,
     TutorModule,
+    CapacidadeCargaModule,
+    AuditoriaModule,
   ],
   controllers: [AppController],
   providers: [

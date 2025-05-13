@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class FipeItemDto {
   @IsString()
@@ -125,11 +132,18 @@ export class VeiculoPlacaDto {
 }
 
 export class CreateVeiculoDto {
+  @ApiProperty({ description: 'Placa do veículo', example: 'ABC1234' })
   @IsString()
   @IsNotEmpty({ message: 'A placa é obrigatória' })
   placa: string;
 
+  @ApiProperty({ description: 'Dados completos do veículo' })
   @IsObject()
   @IsNotEmpty({ message: 'Os dados do veículo são obrigatórios' })
   veiculoPlaca: VeiculoPlacaDto;
+
+  @ApiProperty({ description: 'ID do tutelado a ser designado (opcional)' })
+  @IsNumber()
+  @IsOptional()
+  tuteladoDesignadoId?: number | null;
 }

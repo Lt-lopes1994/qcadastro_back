@@ -4,7 +4,7 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
-  OneToOne,
+  OneToMany,
 } from 'typeorm';
 import { RegisteredUser } from '../../user/entity/user.entity';
 import { Tutor } from './tutor.entity';
@@ -26,8 +26,9 @@ export class Tutelado {
   @Column({ nullable: true })
   tutorId: number;
 
-  @Column({ nullable: true })
-  veiculoDesignadoId: number;
+  // Remover a coluna veiculoDesignadoId - agora a relação é inversa
+  // @Column({ nullable: true })
+  // veiculoDesignadoId: number;
 
   @Column({
     type: 'enum',
@@ -54,7 +55,7 @@ export class Tutelado {
   @JoinColumn({ name: 'tutorId' })
   tutor: Tutor;
 
-  @OneToOne(() => Veiculo)
-  @JoinColumn({ name: 'veiculoDesignadoId' })
-  veiculoDesignado: Veiculo;
+  // Um tutelado pode ter vários veículos designados a ele
+  @OneToMany(() => Veiculo, (veiculo) => veiculo.tuteladoDesignado)
+  veiculosDesignados: Veiculo[];
 }

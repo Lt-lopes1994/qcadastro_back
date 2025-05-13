@@ -151,12 +151,13 @@ export class TutorController {
   }
 
   @Get('tutelados')
-  @ApiOperation({ summary: 'Listar tutelados do tutor atual' })
-  @ApiResponse({ status: 200, description: 'Lista de tutelados' })
+  @ApiOperation({ summary: 'Listar tutelados ativos do tutor atual' })
+  @ApiResponse({ status: 200, description: 'Lista de tutelados ativos' })
   @ApiResponse({ status: 404, description: 'Tutelados não encontrados' })
   async listarTuteladosDoTutor(@Req() request: UserRequest) {
     const tutor = await this.tutorService.findTutorByUserId(request.user.id);
-    return this.tutorService.listarTutelados(tutor.id);
+    // Passar parâmetro adicional para filtrar apenas tutelados ativos
+    return this.tutorService.listarTutelados(tutor.id, 'ATIVO');
   }
 
   @Get('tutelado/perfil')
@@ -190,6 +191,67 @@ export class TutorController {
     return this.tutorService.listarTutelados(tutorId);
   }
 
+  @Get(':id/empresas')
+  @ApiOperation({ summary: 'Listar empresas vinculadas ao tutor' })
+  @ApiParam({ name: 'id', description: 'ID do tutor' })
+  @ApiResponse({ status: 200, description: 'Lista de empresas' })
+  async listarEmpresasVinculadas(
+    @Param('id', ParseIntPipe) tutorId: number,
+    @Req() request: UserRequest,
+  ) {
+    // Verificar permissão
+    if (request.user.role !== 'admin') {
+      try {
+        const tutor = await this.tutorService.findTutorByUserId(
+          request.user.id,
+        );
+        if (tutor.id !== tutorId) {
+          throw new ForbiddenException(
+            'Você não tem permissão para acessar estes dados',
+          );
+        }
+      } catch (error) {
+        throw new ForbiddenException(
+          'Você não tem permissão para acessar estes dados',
+        );
+      }
+    }
+
+    return this.tutorService.listarEmpresasVinculadas(tutorId);
+  }
+
+  @Delete(':id/empresas/:empresaId')
+  @ApiOperation({ summary: 'Desvincular empresa do tutor' })
+  @ApiParam({ name: 'id', description: 'ID do tutor' })
+  @ApiParam({ name: 'empresaId', description: 'ID da empresa' })
+  @ApiResponse({ status: 200, description: 'Empresa desvinculada com sucesso' })
+  async desvincularEmpresa(
+    @Param('id', ParseIntPipe) tutorId: number,
+    @Param('empresaId', ParseIntPipe) empresaId: number,
+    @Req() request: UserRequest,
+  ) {
+    // Verificar permissão
+    if (request.user.role !== 'admin') {
+      try {
+        const tutor = await this.tutorService.findTutorByUserId(
+          request.user.id,
+        );
+        if (tutor.id !== tutorId) {
+          throw new ForbiddenException(
+            'Você não tem permissão para realizar esta operação',
+          );
+        }
+      } catch (error) {
+        throw new ForbiddenException(
+          'Você não tem permissão para realizar esta operação',
+        );
+      }
+    }
+
+    await this.tutorService.desvincularEmpresa(tutorId, empresaId);
+    return { message: 'Empresa desvinculada com sucesso' };
+  }
+
   @Get()
   async listarTodos(@Req() request: UserRequest) {
     // Somente admins podem listar todos os tutores
@@ -211,33 +273,6 @@ export class TutorController {
   async verificarCnpj(@Param('cnpj') cnpj: string) {
     return this.tutorService.verificarCnpj(cnpj);
   }
-
-  // @Post(':id/vincular-empresa')
-  // async vincularEmpresa(
-  //   @Param('id', ParseIntPipe) tutorId: number,
-  //   @Body('idEmpresa') idEmpresa: number,
-  //   @Req() request: UserRequest,
-  // ) {
-  //   // Verificar se o usuário tem permissão (é o próprio tutor ou admin)
-  //   if (request.user.role !== 'admin') {
-  //     try {
-  //       const tutor = await this.tutorService.findTutorByUserId(
-  //         request.user.id,
-  //       );
-  //       if (tutor.id !== tutorId) {
-  //         throw new ForbiddenException(
-  //           'Você não tem permissão para realizar esta operação',
-  //         );
-  //       }
-  //     } catch (error) {
-  //       throw new ForbiddenException(
-  //         'Você não tem permissão para realizar esta operação',
-  //       );
-  //     }
-  //   }
-
-  //   return this.tutorService.vincularEmpresa(tutorId, idEmpresa);
-  // }
 
   @Post('vincular-minha-empresa')
   @ApiOperation({ summary: 'Vincular tutor à empresa' })

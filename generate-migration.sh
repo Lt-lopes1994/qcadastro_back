@@ -14,8 +14,8 @@ fi
 echo "Gerando migração: $MIGRATION_NAME..."
 
 # Gerar a migração
-npm run typeorm -- migration:generate -n $MIGRATION_NAME
-
+# Gerar a migração
+npm run typeorm -- migration:generate -d ./src/database/datasource.ts ./src/migrations/$MIGRATION_NAME
 # Verificar se a migração foi gerada com sucesso
 if [ $? -eq 0 ]; then
   echo "Migração gerada com sucesso!"

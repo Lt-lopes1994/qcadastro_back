@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
@@ -23,6 +24,9 @@ import { SolicitacaoVinculo } from './entities/solicitacao-vinculo.entity';
 import { SolicitacaoVinculoDto } from './dto/solicitacao-vinculo.dto';
 import { RespostaSolicitacaoDto } from './dto/resposta-solicitacao.dto';
 import { StatusSolicitacao } from './entities/status-solicitacao.enum';
+import { TutorEmpresa } from './entities/tutor-empresa.entity';
+import { AuditoriaService } from '../auditoria/auditoria.service';
+import { TipoAcao } from 'src/auditoria/entities/auditoria-acao.entity';
 
 @Injectable()
 export class TutorService {
@@ -39,7 +43,10 @@ export class TutorService {
     private readonly empresaRepository: Repository<Empresa>,
     @InjectRepository(SolicitacaoVinculo)
     private readonly solicitacaoRepository: Repository<SolicitacaoVinculo>,
+    @InjectRepository(TutorEmpresa)
+    private readonly tutorEmpresaRepository: Repository<TutorEmpresa>,
     private readonly emailService: EmailService,
+    private readonly auditoriaService: AuditoriaService,
   ) {}
 
   async cadastrarUsuario(
@@ -198,8 +205,83 @@ export class TutorService {
       );
     }
 
-    // Desvincular o tutelado
+    // 1. Desvincula todos os veículos deste tutelado
+    const veiculosDoTutelado = await this.veiculoRepository.find({
+      where: { tuteladoDesignadoId: tuteladoId },
+    });
+
+    if (veiculosDoTutelado.length > 0) {
+      // Usando queryBuilder para atualizar todos os veículos de uma vez
+      await this.veiculoRepository
+        .createQueryBuilder()
+        .update()
+        .set({ tuteladoDesignadoId: null })
+        .where('tuteladoDesignadoId = :tuteladoId', { tuteladoId })
+        .execute();
+
+      // Registrar na auditoria a desvinculação de cada veículo
+      for (const veiculo of veiculosDoTutelado) {
+        await this.auditoriaService.registrarAcao({
+          tipoAcao: TipoAcao.REMOCAO_DESIGNACAO,
+          entidadeOrigemTipo: 'veiculo',
+          entidadeOrigemId: veiculo.id,
+          entidadeDestinoTipo: 'tutelado',
+          entidadeDestinoId: tuteladoId,
+          usuarioId: tutor.userId,
+          dadosAnteriores: { tuteladoDesignadoId: tuteladoId },
+          dadosPosteriores: { tuteladoDesignadoId: null },
+          observacao: `Veículo de placa ${veiculo.placa} desvinculado automaticamente do tutelado ID ${tuteladoId} por desvinculação do tutor`,
+        });
+      }
+    }
+
+    // 2. Atualiza o status de solicitações
+    // Marcar solicitações pendentes como rejeitadas
+    await this.solicitacaoRepository
+      .createQueryBuilder()
+      .update()
+      .set({
+        status: StatusSolicitacao.REJEITADA,
+        dataProcessamento: new Date(),
+      })
+      .where('tuteladoId = :tuteladoId AND status = :statusPendente', {
+        tuteladoId,
+        statusPendente: StatusSolicitacao.PENDENTE,
+      })
+      .execute();
+
+    // 3. Desvincular o tutelado
     tutelado.status = TuteladoStatus.INATIVO;
+    tutelado.tutorId = null as unknown as number;
+
+    // 4. Notificar por email sobre a desvinculação, se o serviço estiver disponível
+    try {
+      const tuteladoUser = await this.userRepository.findOne({
+        where: { id: tutelado.userId },
+      });
+
+      const tutorUser = await this.userRepository.findOne({
+        where: { id: tutor.userId },
+      });
+
+      if (tuteladoUser && tutorUser && this.emailService) {
+        await this.emailService.sendTuteladoDesvinculacaoEmail(
+          tuteladoUser.email,
+          {
+            tuteladoName: `${tuteladoUser.firstName} ${tuteladoUser.lastName}`,
+            tutorName: `${tutorUser.firstName} ${tutorUser.lastName}`,
+            htmlContent: `Você foi desvinculado do tutor ${tutorUser.firstName} ${tutorUser.lastName}.`,
+            plainText: `Você foi desvinculado do tutor ${tutorUser.firstName} ${tutorUser.lastName}.`,
+          },
+        );
+      }
+    } catch (error) {
+      console.error(
+        'Erro ao enviar email de notificação de desvinculação:',
+        error,
+      );
+      // Continuar o processo mesmo se falhar o envio de email
+    }
 
     return await this.tuteladoRepository.save(tutelado);
   }
@@ -230,7 +312,7 @@ export class TutorService {
     return tutelado;
   }
 
-  async listarTutelados(tutorId: number): Promise<Tutelado[]> {
+  async listarTutelados(tutorId: number, status?: string): Promise<any[]> {
     // Verificar se o tutor existe
     const tutor = await this.tutorRepository.findOne({
       where: { id: tutorId },
@@ -241,7 +323,54 @@ export class TutorService {
       throw new NotFoundException(`Tutor com ID ${tutorId} não encontrado`);
     }
 
-    return tutor.tutelados;
+    // Array para armazenar os resultados formatados
+    type TuteladoFormatado = Tutelado & {
+      user: Partial<RegisteredUser> | null;
+      veiculosDesignados: any[];
+    };
+    const tuteladosFormatados: TuteladoFormatado[] = [];
+
+    // Filtrar tutelados por status se o parâmetro for fornecido
+    const tuteladosFiltrados = status
+      ? tutor.tutelados.filter(
+          (tutelado) => tutelado.status === (status as TuteladoStatus),
+        )
+      : tutor.tutelados;
+
+    // Processar cada tutelado para remover dados sensíveis e adicionar veículos
+    for (const tutelado of tuteladosFiltrados) {
+      // Remover dados sensíveis do usuário
+      const userSanitized = this.removeDadosSensiveis(tutelado.user);
+
+      // Buscar veículos designados para este tutelado
+      const veiculos = await this.veiculoRepository.find({
+        where: { tuteladoDesignadoId: tutelado.id },
+        relations: ['tutor', 'tutor.user'],
+      });
+
+      // Sanitizar dados de usuário dos tutores de cada veículo
+      const veiculosSanitizados = veiculos.map((veiculo) => {
+        if (veiculo.tutor?.user) {
+          return {
+            ...veiculo,
+            tutor: {
+              ...veiculo.tutor,
+              user: this.removeDadosSensiveis(veiculo.tutor.user),
+            },
+          };
+        }
+        return veiculo;
+      });
+
+      // Adicionar ao array de resultados
+      tuteladosFormatados.push({
+        ...tutelado,
+        user: userSanitized as any, // Type assertion to avoid type error
+        veiculosDesignados: veiculosSanitizados as any[], // Type assertion to avoid type error
+      });
+    }
+
+    return tuteladosFormatados;
   }
 
   async listarTodosTutores(): Promise<Tutor[]> {
@@ -253,7 +382,7 @@ export class TutorService {
   async designarVeiculo(
     tutorId: number,
     designarVeiculoDto: DesignarVeiculoDto,
-  ): Promise<Tutelado> {
+  ): Promise<Veiculo> {
     // Verificar se o tutor existe
     const tutor = await this.tutorRepository.findOne({
       where: { id: tutorId },
@@ -284,10 +413,9 @@ export class TutorService {
       );
     }
 
-    // Designar o veículo ao tutelado
-    tutelado.veiculoDesignadoId = designarVeiculoDto.veiculoId;
-
-    return await this.tuteladoRepository.save(tutelado);
+    // MODIFICADO: Agora atualizamos o veículo, não o tutelado
+    veiculo.tuteladoDesignadoId = designarVeiculoDto.tuteladoId;
+    return await this.veiculoRepository.save(veiculo);
   }
 
   async verificarCpf(cpf: string): Promise<{
@@ -518,29 +646,97 @@ export class TutorService {
         );
       }
 
-      // Atualizar o tutor com o ID e CNPJ da empresa (sempre no formato somente números)
-      tutor.empresaId = vincularEmpresaDto.empresaId;
-      tutor.cnpjEmpresa = empresa.cnpj.replace(/[^\d]/g, ''); // Remover todos caracteres não numéricos
+      // Verificar se esta vinculação já existe
+      const vinculoExistente = (await this.tutorEmpresaRepository.findOne({
+        where: {
+          tutorId: tutor.id,
+          empresaId: vincularEmpresaDto.empresaId,
+          isActive: true,
+        },
+      })) as TutorEmpresa | null;
 
-      const tutorAtualizado = await this.tutorRepository.save(tutor);
+      if (vinculoExistente) {
+        // Se o vínculo já existir e estiver ativo, apenas retornamos o tutor
+        console.log('Vínculo já existe, retornando tutor existente');
+        return tutor;
+      }
 
-      // Carregar a relação com a empresa para a resposta
-      const tutorComEmpresa = await this.tutorRepository.findOne({
-        where: { id: tutorAtualizado.id },
-        relations: ['empresa'],
+      // Buscar vínculo desativado
+      const vinculoDesativado = await this.tutorEmpresaRepository.findOne({
+        where: {
+          tutorId: tutor.id,
+          empresaId: vincularEmpresaDto.empresaId,
+          isActive: false,
+        },
       });
 
-      if (!tutorComEmpresa) {
+      // Se já existir um vínculo desativado, reativamos ele
+      if (vinculoDesativado) {
+        vinculoDesativado.isActive = true;
+        await this.tutorEmpresaRepository.save(vinculoDesativado);
+      } else {
+        // Criar um novo vínculo
+        const novoVinculo = this.tutorEmpresaRepository.create({
+          tutorId: tutor.id,
+          empresaId: vincularEmpresaDto.empresaId,
+          isActive: true,
+        });
+        await this.tutorEmpresaRepository.save(novoVinculo);
+      }
+
+      // Carregar o tutor com suas relações de empresas
+      const tutorAtualizado = await this.tutorRepository.findOne({
+        where: { id: tutor.id },
+        relations: ['empresaVinculos', 'empresaVinculos.empresa'],
+      });
+
+      if (!tutorAtualizado) {
         throw new NotFoundException(
-          `Tutor com ID ${tutorAtualizado.id} não encontrado ao carregar relações`,
+          `Tutor com ID ${tutor.id} não encontrado ao carregar relações`,
         );
       }
 
-      return tutorComEmpresa;
+      return tutorAtualizado;
     } catch (error) {
       console.error('ERRO AO VINCULAR EMPRESA:', error);
       throw error;
     }
+  }
+
+  async listarEmpresasVinculadas(tutorId: number): Promise<Empresa[]> {
+    const tutor = await this.tutorRepository.findOne({
+      where: { id: tutorId },
+      relations: ['empresaVinculos', 'empresaVinculos.empresa'],
+    });
+
+    if (!tutor) {
+      throw new NotFoundException(`Tutor com ID ${tutorId} não encontrado`);
+    }
+
+    // Filtrar apenas vínculos ativos e mapear para retornar as empresas
+    return tutor.empresaVinculos
+      .filter((vinculo) => vinculo.isActive)
+      .map((vinculo) => vinculo.empresa);
+  }
+
+  async desvincularEmpresa(tutorId: number, empresaId: number): Promise<void> {
+    const vinculo = await this.tutorEmpresaRepository.findOne({
+      where: {
+        tutorId,
+        empresaId,
+        isActive: true,
+      },
+    });
+
+    if (!vinculo) {
+      throw new NotFoundException(
+        `Vínculo entre tutor ${tutorId} e empresa ${empresaId} não encontrado`,
+      );
+    }
+
+    // Desativar o vínculo em vez de excluí-lo
+    vinculo.isActive = false;
+    await this.tutorEmpresaRepository.save(vinculo);
   }
 
   async assinarContrato(tutorId: number): Promise<Tutor> {
@@ -719,12 +915,8 @@ export class TutorService {
           tutelado.tutorId = tutor.id;
           tutelado.status = TuteladoStatus.ATIVO;
 
-          // Salvar tutelado com método explícito de atualização
-          const tuteladoSalvo = await this.tuteladoRepository.save({
-            ...tutelado,
-            tutorId: tutor.id,
-            status: TuteladoStatus.ATIVO,
-          });
+          // Salvar tutelado - não precisamos espalhar o objeto e redefinir as propriedades
+          const tuteladoSalvo = await this.tuteladoRepository.save(tutelado);
 
           console.log(
             `Tutelado atualizado com sucesso: ${JSON.stringify(tuteladoSalvo)}`,
@@ -933,7 +1125,7 @@ export class TutorService {
         formatoFormatado,
       });
 
-      // Busca tutores pelo CNPJ usando consulta SQL para obter todos os dados relacionados
+      // Busca tutores pelo CNPJ usando a nova estrutura de relacionamento
       const result = await this.tutorRepository.query(
         `SELECT
           t.id AS tutor_id,
@@ -953,8 +1145,6 @@ export class TutorService {
           t.updatedAt AS tutor_updated,
           t.assinadoContrato,
           t.dataAssinaturaContrato,
-          t.empresaId,
-          t.cnpjEmpresa,
           rs.id AS user_id,
           rs.firstName,
           rs.lastName,
@@ -992,13 +1182,15 @@ export class TutorService {
           tutores t
         JOIN
           registered_user rs ON t.userId = rs.id
-        LEFT JOIN
-          empresa e ON t.empresaId = e.id
+        JOIN
+          tutor_empresas te ON t.id = te.tutorId AND te.isActive = true
+        JOIN
+          empresa e ON te.empresaId = e.id
         WHERE
-          t.cnpjEmpresa = ?
-          OR t.cnpjEmpresa = ?
-          OR t.cnpjEmpresa = ?
-          OR REPLACE(t.cnpjEmpresa, '.', '') = ?
+          e.cnpj = ?
+          OR e.cnpj = ?
+          OR e.cnpj = ?
+          OR REPLACE(e.cnpj, '.', '') = ?
         `,
         [formatoPadrao, formatoNumerico, formatoFormatado, formatoNumerico],
       );
@@ -1014,7 +1206,7 @@ export class TutorService {
       const dadosFormatados = result.map((dadosBrutos) => {
         // Dados do tutor
         const tutor = {
-          id: dadosBrutos.tutor_id, // Usando o alias correto
+          id: dadosBrutos.tutor_id,
           userId: dadosBrutos.userId,
           scoreCredito: dadosBrutos.scoreCredito,
           status: dadosBrutos.status,
@@ -1031,13 +1223,11 @@ export class TutorService {
           updatedAt: dadosBrutos.tutor_updated,
           assinadoContrato: dadosBrutos.assinadoContrato,
           dataAssinaturaContrato: dadosBrutos.dataAssinaturaContrato,
-          empresaId: dadosBrutos.empresaId,
-          cnpjEmpresa: dadosBrutos.cnpjEmpresa,
         };
 
         // Dados do usuário (excluindo campos sensíveis)
         const usuario = {
-          id: dadosBrutos.user_id, // Usando o alias correto
+          id: dadosBrutos.user_id,
           firstName: dadosBrutos.firstName,
           lastName: dadosBrutos.lastName,
           cpf: dadosBrutos.cpf,
@@ -1053,30 +1243,28 @@ export class TutorService {
         };
 
         // Dados da empresa
-        const empresa = dadosBrutos.empresaId
-          ? {
-              id: dadosBrutos.empresa_id, // Usando o alias correto
-              cnpj: dadosBrutos.cnpj,
-              razaoSocial: dadosBrutos.razaoSocial,
-              nomeFantasia: dadosBrutos.nomeFantasia,
-              naturezaJuridica: dadosBrutos.naturezaJuridica,
-              logradouro: dadosBrutos.logradouro,
-              numero: dadosBrutos.numero,
-              complemento: dadosBrutos.complemento,
-              bairro: dadosBrutos.bairro,
-              municipio: dadosBrutos.municipio,
-              cep: dadosBrutos.cep,
-              uf: dadosBrutos.uf,
-              telefone: dadosBrutos.telefone,
-              situacaoCadastral: dadosBrutos.situacaoCadastral,
-              dataInicioAtividade: dadosBrutos.dataInicioAtividade,
-              atividadeEconomica: dadosBrutos.atividadeEconomica,
-              porte: dadosBrutos.porte,
-              capitalSocial: dadosBrutos.capitalSocial,
-              urlComprovante: dadosBrutos.urlComprovante,
-              logoPath: dadosBrutos.logoPath,
-            }
-          : null;
+        const empresa = {
+          id: dadosBrutos.empresa_id,
+          cnpj: dadosBrutos.cnpj,
+          razaoSocial: dadosBrutos.razaoSocial,
+          nomeFantasia: dadosBrutos.nomeFantasia,
+          naturezaJuridica: dadosBrutos.naturezaJuridica,
+          logradouro: dadosBrutos.logradouro,
+          numero: dadosBrutos.numero,
+          complemento: dadosBrutos.complemento,
+          bairro: dadosBrutos.bairro,
+          municipio: dadosBrutos.municipio,
+          cep: dadosBrutos.cep,
+          uf: dadosBrutos.uf,
+          telefone: dadosBrutos.telefone,
+          situacaoCadastral: dadosBrutos.situacaoCadastral,
+          dataInicioAtividade: dadosBrutos.dataInicioAtividade,
+          atividadeEconomica: dadosBrutos.atividadeEconomica,
+          porte: dadosBrutos.porte,
+          capitalSocial: dadosBrutos.capitalSocial,
+          urlComprovante: dadosBrutos.urlComprovante,
+          logoPath: dadosBrutos.logoPath,
+        };
 
         return {
           tutor,
@@ -1120,26 +1308,25 @@ export class TutorService {
       ? this.removeDadosSensiveis(tutelado.tutor.user)
       : null;
 
-    // Recuperar veículo se existir
-    let veiculo: Veiculo | Record<string, any> | null = null;
-    if (tutelado.veiculoDesignadoId) {
-      const veiculoCompleto = await this.veiculoRepository.findOne({
-        where: { id: tutelado.veiculoDesignadoId },
-        relations: ['tutor', 'tutor.user'],
-      });
+    // MODIFICADO: Buscar veículos designados para este tutelado
+    const veiculosDesignados = await this.veiculoRepository.find({
+      where: { tuteladoDesignadoId: tutelado.id },
+      relations: ['tutor', 'tutor.user'],
+    });
 
-      if (veiculoCompleto && veiculoCompleto.tutor?.user) {
-        veiculo = {
-          ...veiculoCompleto,
+    // Sanitizar dados de usuário dos tutores de cada veículo
+    const veiculosSanitizados = veiculosDesignados.map((veiculo) => {
+      if (veiculo.tutor?.user) {
+        return {
+          ...veiculo,
           tutor: {
-            ...veiculoCompleto.tutor,
-            user: this.removeDadosSensiveis(veiculoCompleto.tutor.user),
+            ...veiculo.tutor,
+            user: this.removeDadosSensiveis(veiculo.tutor.user),
           },
         };
-      } else {
-        veiculo = veiculoCompleto;
       }
-    }
+      return veiculo;
+    });
 
     return {
       user: sanitizedUser,
@@ -1155,14 +1342,17 @@ export class TutorService {
         user: sanitizedTutorUser,
       },
       tutorUser: sanitizedTutorUser,
-      veiculoDesignado: tutelado.veiculoDesignado,
-      veiculo: veiculo,
+      // MODIFICADO: Retornar a lista de veículos designados com type assertion
+      veiculosDesignados: veiculosSanitizados as any[],
+      // Para compatibilidade, retornar o primeiro veículo como 'veiculoDesignado'
+      veiculoDesignado:
+        veiculosSanitizados.length > 0 ? (veiculosSanitizados[0] as any) : null,
     };
   }
 
   // Método auxiliar para remover dados sensíveis dos objetos de usuário
   private removeDadosSensiveis(
-    user: RegisteredUser,
+    user: RegisteredUser | null | undefined,
   ): Partial<RegisteredUser> | null {
     if (!user) return null;
 
