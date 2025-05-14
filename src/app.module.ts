@@ -39,6 +39,7 @@ import { CapacidadeCarga } from './capacidade-carga/entities/capacidade-carga.en
 import { TutorEmpresa } from './tutor/entities/tutor-empresa.entity';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { AuditoriaAcao } from './auditoria/entities/auditoria-acao.entity';
+import { NetrinRequestLog } from './pesquisa-netrin/entities/netrin-request-log.entity';
 
 @Module({
   imports: [
@@ -79,7 +80,8 @@ import { AuditoriaAcao } from './auditoria/entities/auditoria-acao.entity';
           SolicitacaoVinculo,
           CapacidadeCarga,
           TutorEmpresa,
-          AuditoriaAcao, // Certifique-se que esta entidade está incluída
+          AuditoriaAcao,
+          NetrinRequestLog,
         ],
         synchronize: configService.get('NODE_ENV') !== 'production',
         logging: configService.get('NODE_ENV') !== 'production',
