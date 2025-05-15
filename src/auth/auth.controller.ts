@@ -6,6 +6,7 @@ import { IpBlockGuard } from '../security/guards/ip-block.guard';
 import { LoginDto } from '../user/dto/login.dto';
 import { AuthService } from './auth.service';
 import { Public } from './decorators/public.decorator';
+import { getClientIp } from '../utils/ip.util';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -32,11 +33,16 @@ export class AuthController {
     @Ip() ip: string,
     @Request() req: ExpressRequest,
   ) {
-    const user: any = await this.authService.validateUser(
-      loginDto.cpf,
-      loginDto.password,
-      ip || req.ip || '0.0.0.0',
+    // Usar o utilitário para obter o IP real
+    const clientIp = getClientIp(req);
+
+    // Passa o IP real para o serviço
+    return this.authService.login(
+      await this.authService.validateUser(
+        loginDto.cpf,
+        loginDto.password,
+        clientIp, // Usar o IP real aqui
+      ),
     );
-    return this.authService.login(user);
   }
 }
