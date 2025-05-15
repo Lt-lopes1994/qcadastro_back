@@ -27,6 +27,7 @@ async function bootstrap() {
 
   // Configurar prefixo global da API
   app.setGlobalPrefix('api/v1');
+  app.set('trust proxy', true); // Habilitar proxy se necessário
 
   // Habilitar validação de DTOs
   app.useGlobalPipes(
