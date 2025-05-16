@@ -88,7 +88,37 @@ export interface VeiculoPlacaResponse {
         tipo_modelo?: number;
       }>;
     };
-    extra?: any;
+    extra?: {
+      capMaximaTracao?: string;
+      chassi?: string;
+      cilindradas?: string;
+      combustivel?: string;
+      eixos?: string;
+      especie?: string;
+      faturado?: string;
+      grupo?: string;
+      linha?: string;
+      modelo?: string;
+      motor?: string;
+      placaAntigo?: string;
+      placaNova?: string;
+      quantidadePassageiro?: string;
+      restricao?: string;
+      restricao2?: string;
+      restricao3?: string;
+      restricao4?: string;
+      segmento?: string;
+      situacaoChassi?: string;
+      situacaoVeiculo?: string;
+      subSegmento?: string;
+      terceiroEixo?: string;
+      tipoCarroceria?: string | null;
+      docFaturado?: string;
+      docImportadora?: string;
+      ufFaturado?: string;
+      ufPlaca?: string;
+      tipoVeiculo?: string;
+    };
   };
 }
 
@@ -116,8 +146,7 @@ export interface ScoreCreditoResponse {
 
 export interface ReceitaFederalCNPJResponse {
   cnpj: string;
-  receitaFederalCnpj: {
-    cnpj: string;
+  receitaFederal: {
     razaoSocial: string;
     nomeFantasia: string;
     naturezaJuridica: string;
@@ -128,10 +157,18 @@ export interface ReceitaFederalCNPJResponse {
     municipio: string;
     cep: string;
     uf: string;
+    email: string;
     telefone: string;
+    efr: string;
     situacaoCadastral: string;
+    dataSituacaocadastral: string;
     dataInicioAtividade: string;
     atividadeEconomica: string;
+    atividadesEconomicasSecundarias: string[];
+    tipoCNPJ: string;
+    situacaoEspecial: string;
+    dataSituacaoEspecial: string;
+    motivoSituacao: string;
     porte: string;
     capitalSocial: string;
     urlComprovante?: string;
