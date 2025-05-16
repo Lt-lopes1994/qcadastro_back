@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Body, Controller, Ip, Post, Request, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request as ExpressRequest } from 'express';
@@ -16,18 +15,116 @@ export class AuthController {
   @Public()
   @UseGuards(IpBlockGuard)
   @Post('login')
-  @ApiOperation({ summary: 'Autenticar usuário' })
+  @ApiOperation({
+    summary: 'Autenticar usuário',
+    description:
+      'Autentica um usuário com CPF e senha, retornando um token JWT válido por 24 horas.',
+  })
   @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        cpf: { type: 'string', example: '12345678900' },
-        password: { type: 'string', example: 'senha123' },
+    description: 'Credenciais do usuário',
+    type: LoginDto,
+    examples: {
+      loginExample: {
+        summary: 'Exemplo de credenciais',
+        value: {
+          cpf: '12345678900',
+          password: 'senha123',
+        },
       },
     },
   })
-  @ApiResponse({ status: 200, description: 'Autenticação bem-sucedida' })
-  @ApiResponse({ status: 401, description: 'Credenciais inválidas' })
+  @ApiResponse({
+    status: 200,
+    description: 'Autenticação bem-sucedida',
+    schema: {
+      type: 'object',
+      properties: {
+        access_token: {
+          type: 'string',
+          example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+          description: 'Token JWT para autenticação',
+        },
+        token_type: {
+          type: 'string',
+          example: 'Bearer',
+          description: 'Tipo do token',
+        },
+        expires_in: {
+          type: 'string',
+          example: '24h',
+          description: 'Tempo de expiração do token',
+        },
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'number', example: 1 },
+            cpf: { type: 'string', example: '123.456.789-00' },
+            firstName: { type: 'string', example: 'João' },
+            lastName: { type: 'string', example: 'Silva' },
+            phoneNumber: { type: 'string', example: '11987654321' },
+            email: { type: 'string', example: 'joao.silva@exemplo.com' },
+            role: {
+              type: 'string',
+              example: 'user',
+              enum: ['admin', 'user', 'auditor'],
+            },
+            emailVerified: { type: 'boolean', example: true },
+            phoneVerified: { type: 'boolean', example: true },
+            isActive: { type: 'boolean', example: true },
+            fotoPath: {
+              type: 'string',
+              example: '/uploads/user-photos/avatar.jpg',
+              nullable: true,
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Credenciais inválidas',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Email ou senha inválidos' },
+        error: { type: 'string', example: 'Unauthorized' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'IP bloqueado por tentativas excessivas',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 403 },
+        message: {
+          type: 'string',
+          example:
+            'IP temporariamente bloqueado por tentativas excessivas de login',
+        },
+        error: { type: 'string', example: 'Forbidden' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dados de entrada inválidos',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['cpf deve ser um CPF válido'],
+        },
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
+  })
   async login(
     @Body() loginDto: LoginDto,
     @Ip() ip: string,
