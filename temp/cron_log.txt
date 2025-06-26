@@ -1,0 +1,60 @@
+==============================
+Iniciando limpeza dos logs do Nginx...
+Sun May 25 00:00:01 UTC 2025
+==============================
+Limpando arquivos de log...
+✓ access.log limpo
+✓ error.log limpo
+✓ uploads_access.log limpo
+✓ uploads_error.log limpo
+==============================
+Limpeza dos logs concluída com sucesso!
+==============================
+==============================
+Iniciando limpeza dos logs do Nginx...
+Sun Jun  1 00:00:01 UTC 2025
+==============================
+Limpando arquivos de log...
+✓ access.log limpo
+✓ error.log limpo
+✓ uploads_access.log limpo
+✓ uploads_error.log limpo
+==============================
+Limpeza dos logs concluída com sucesso!
+==============================
+==============================
+Iniciando limpeza dos logs do Nginx...
+Sun Jun  8 00:00:01 UTC 2025
+==============================
+Limpando arquivos de log...
+✓ access.log limpo
+✓ error.log limpo
+✓ uploads_access.log limpo
+✓ uploads_error.log limpo
+==============================
+Limpeza dos logs concluída com sucesso!
+==============================
+==============================
+Iniciando limpeza dos logs do Nginx...
+Sun Jun 15 00:00:02 UTC 2025
+==============================
+Limpando arquivos de log...
+✓ access.log limpo
+✓ error.log limpo
+✓ uploads_access.log limpo
+✓ uploads_error.log limpo
+==============================
+Limpeza dos logs concluída com sucesso!
+==============================
+==============================
+Iniciando limpeza dos logs do Nginx...
+Sun Jun 22 00:00:02 UTC 2025
+==============================
+Limpando arquivos de log...
+✓ access.log limpo
+✓ error.log limpo
+✓ uploads_access.log limpo
+✓ uploads_error.log limpo
+==============================
+Limpeza dos logs concluída com sucesso!
+==============================

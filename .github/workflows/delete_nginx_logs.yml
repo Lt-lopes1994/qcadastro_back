@@ -1,0 +1,40 @@
+name: Limpeza Semanal de Logs Nginx
+
+on:
+  schedule:
+    # Executa toda segunda-feira às 01:00 AM
+    - cron: '0 1 * * 1'
+  workflow_dispatch:  # Permite execução manual
+
+jobs:
+  clean-logs:
+    runs-on: self-hosted  # Assumindo que você usa runners self-hosted
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Limpar logs do Nginx
+        run: |
+          echo "=============================="
+          echo "Iniciando limpeza dos logs do Nginx..."
+          echo "$(date)"
+          echo "=============================="
+          
+          # Diretório dos logs
+          LOG_DIR="./nginx/logs"
+          
+          # Limpar os logs
+          echo "Limpando arquivos de log..."
+          > "$LOG_DIR/access.log" || echo "Arquivo access.log não encontrado"
+          > "$LOG_DIR/error.log" || echo "Arquivo error.log não encontrado" 
+          > "$LOG_DIR/uploads_access.log" || echo "Arquivo uploads_access.log não encontrado"
+          > "$LOG_DIR/uploads_error.log" || echo "Arquivo uploads_error.log não encontrado"
+          
+          # Remover backups com mais de 30 dias
+          echo "Removendo backups antigos..."
+          find "$BACKUP_DIR" -name "nginx_logs_*.tar.gz" -type f -mtime +30 -delete || echo "Nenhum backup antigo encontrado"
+          
+          echo "=============================="
+          echo "Limpeza dos logs concluída com sucesso!"
+          echo "=============================="
