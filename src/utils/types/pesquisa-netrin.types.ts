@@ -174,3 +174,25 @@ export interface ReceitaFederalCNPJResponse {
     urlComprovante?: string;
   };
 }
+
+export interface CenprotResponse {
+  cnpj: string;
+  cenprotProtestos: Record<
+    string,
+    Array<{
+      cartorio: string;
+      obterDetalhes: string | null;
+      cidade: string;
+      quantidadeTitulos: string;
+      endereco: string;
+      telefone: string;
+      protestos: Array<{
+        cpfCnpj: string;
+        data: string;
+        dataProtesto: string;
+        dataVencimento: string;
+        valor: string;
+      }>;
+    }>
+  >;
+}

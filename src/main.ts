@@ -12,6 +12,8 @@ import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'; // Adicione esta importação
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Add type declaration for Swagger UI
 declare global {
@@ -22,9 +24,24 @@ declare global {
   }
 }
 
+// Adicionar antes da função bootstrap():
+function ensureDirectoriesExist() {
+  const directories = ['./temp', './temp/certificates', './uploads'];
+
+  for (const dir of directories) {
+    if (!fs.existsSync(dir)) {
+      console.log(`Criando diretório: ${dir}`);
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  }
+}
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
+
+  // Garantir que os diretórios necessários existam
+  ensureDirectoriesExist();
 
   // Configurar prefixo global da API
   app.setGlobalPrefix('api/v1');

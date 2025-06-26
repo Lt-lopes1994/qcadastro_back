@@ -40,6 +40,8 @@ import { TutorEmpresa } from './tutor/entities/tutor-empresa.entity';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { AuditoriaAcao } from './auditoria/entities/auditoria-acao.entity';
 import { NetrinRequestLog } from './pesquisa-netrin/entities/netrin-request-log.entity';
+import { ScheduleModule } from '@nestjs/schedule';
+import { CertificateMonitorService } from './security/certificate-monitor.service';
 
 @Module({
   imports: [
@@ -111,6 +113,7 @@ import { NetrinRequestLog } from './pesquisa-netrin/entities/netrin-request-log.
     TutorModule,
     CapacidadeCargaModule,
     AuditoriaModule,
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [
@@ -129,6 +132,7 @@ import { NetrinRequestLog } from './pesquisa-netrin/entities/netrin-request-log.
       provide: APP_GUARD,
       useClass: RolesGuard,
     },
+    CertificateMonitorService,
   ],
 })
 export class AppModule {}

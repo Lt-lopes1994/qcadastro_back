@@ -2,24 +2,22 @@ import { Module } from '@nestjs/common';
 import { SecurityService } from './security.service';
 import { BruteForceProtectionService } from './brute-force-protection.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BlockedIp } from './entities/blocked-ip.entity';
-import { LoginAttempt } from './entities/login-attempt.entity';
-import { PermissionsService } from './services/permissions.service';
-import { RolesGuard } from './guards/roles.guard';
+import { LoginAttempt } from '../entities/login-attempt.entity';
+import { CertificateMonitorService } from './certificate-monitor.service';
+import { CertificateManagerService } from './certificate-manager.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([BlockedIp, LoginAttempt])],
+  imports: [TypeOrmModule.forFeature([LoginAttempt])],
   providers: [
     SecurityService,
     BruteForceProtectionService,
-    PermissionsService,
-    RolesGuard,
+    CertificateMonitorService,
+    CertificateManagerService,
   ],
   exports: [
     SecurityService,
     BruteForceProtectionService,
-    PermissionsService,
-    RolesGuard,
+    CertificateManagerService,
   ],
 })
 export class SecurityModule {}
