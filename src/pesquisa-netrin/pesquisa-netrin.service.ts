@@ -1,17 +1,21 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
+import * as fs from 'fs';
+import * as path from 'path';
+import * as FormData from 'form-data';
+import {
+  ReceitaFederalResponse,
+  ProcessoJudicialResponse,
+  VeiculoPlacaResponse,
+  ScoreCreditoResponse,
+  ReceitaFederalCNPJResponse,
+  CenprotResponse,
+} from '../utils/types/pesquisa-netrin.types';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { NetrinRequestLog } from './entities/netrin-request-log.entity';
-import type {
-  ProcessoJudicialResponse,
-  ReceitaFederalCNPJResponse,
-  ReceitaFederalResponse,
-  ScoreCreditoResponse,
-  VeiculoPlacaResponse,
-} from 'src/utils/types/pesquisa-netrin.types';
+import axios from 'axios';
 
 @Injectable()
 export class PesquisaNetrinService {
@@ -19,6 +23,9 @@ export class PesquisaNetrinService {
   private readonly baseUrl = 'https://regularidade-cpf.netrin.com.br/v1';
   private readonly processosUrl =
     'https://api.netrin.com.br/v1/consulta-composta';
+  private readonly cenprotCertPath: string;
+  private readonly cenprotCertPassword: string;
+  private readonly netrinTokenSandbox: string;
 
   constructor(
     private configService: ConfigService,
@@ -26,6 +33,32 @@ export class PesquisaNetrinService {
     private netrinLogRepository: Repository<NetrinRequestLog>,
   ) {
     this.netrinToken = this.configService.get<string>('NETRIN_TOKEN') || '';
+    this.netrinTokenSandbox =
+      this.configService.get<string>('NETRIN_TOKEN_SANDBOX') || '';
+
+    // Usar caminho relativo com fallback para o valor da variável de ambiente
+    const certPathFromEnv = this.configService.get<string>('CENPROT_CERT_PATH');
+    if (certPathFromEnv && certPathFromEnv.startsWith('/etc/qcadastro')) {
+      // Se o caminho começa com /etc/qcadastro, usar o caminho relativo
+      this.cenprotCertPath = path.join(
+        process.cwd(),
+        'etc/qcadastro/certs/QUALITY_TRANSPORTES_E_ENTREGAS_RAPIDAS_LTDA06321409000196.pfx',
+      );
+      console.log(
+        'Usando caminho relativo para o certificado:',
+        this.cenprotCertPath,
+      );
+    } else {
+      // Caso contrário, usar o valor da variável de ambiente
+      this.cenprotCertPath = certPathFromEnv || '';
+      console.log(
+        'Usando caminho do certificado de variável de ambiente:',
+        this.cenprotCertPath,
+      );
+    }
+
+    this.cenprotCertPassword =
+      this.configService.get<string>('CENPROT_CERT_PASSWORD') || '';
   }
 
   // Método privado para registrar requisições assincronamente
@@ -270,6 +303,76 @@ export class PesquisaNetrinService {
         );
       }
       throw new BadRequestException('Erro ao consultar CNPJ');
+    }
+  }
+
+  /**
+   * Consulta protestos no Cenprot usando o certificado digital armazenado no servidor
+   * @param documento CPF ou CNPJ para consulta
+   * @param userId ID do usuário que está realizando a consulta
+   * @returns Dados de protestos do Cenprot
+   */
+  async consultarCenprot(
+    documento: string,
+    userId?: number,
+  ): Promise<CenprotResponse> {
+    try {
+      // Validar se o token existe
+      if (!this.netrinToken && !this.netrinTokenSandbox) {
+        throw new BadRequestException('Token da API Netrin não configurado');
+      }
+
+      // Validar se o certificado está configurado
+      if (!this.cenprotCertPath || !fs.existsSync(this.cenprotCertPath)) {
+        throw new BadRequestException(
+          'Certificado digital não configurado ou não encontrado',
+        );
+      }
+
+      // Determinar se é CPF ou CNPJ pela quantidade de dígitos
+      const documentoNumerico = documento.replace(/\D/g, '');
+      const isCpf = documentoNumerico.length <= 11;
+      const paramType = isCpf ? 'cpf' : 'cnpj';
+
+      // Criar um FormData para enviar o arquivo do certificado
+      const formData = new FormData();
+
+      // Montar a URL da consulta
+      const endpoint = 'protestos-cenprot';
+      const url = `${this.processosUrl}?token=${this.netrinTokenSandbox}&s=${endpoint}&${paramType}=${documentoNumerico}`;
+
+      // Adicionar o certificado ao FormData
+      formData.append('file', fs.createReadStream(this.cenprotCertPath), {
+        filename: path.basename(this.cenprotCertPath),
+      });
+
+      // Adicionar a senha do certificado se necessário (depende da API)
+      if (this.cenprotCertPassword) {
+        formData.append('certificadoSenha', this.cenprotCertPassword);
+      }
+
+      // Fazer a requisição com o FormData incluindo o certificado
+      const response = await axios.post<CenprotResponse>(url, formData, {
+        headers: {
+          ...formData.getHeaders(),
+        },
+      });
+
+      // Registrar requisição bem-sucedida assincronamente
+      void this.logRequest(userId || null, 'cenprot', documentoNumerico);
+
+      return response.data;
+    } catch (error) {
+      // Registrar falha na requisição
+      const documentoNumerico = documento.replace(/\D/g, '');
+      void this.logRequest(userId || null, 'cenprot', documentoNumerico, false);
+
+      if (axios.isAxiosError(error)) {
+        throw new BadRequestException(
+          `Erro na consulta à API Netrin: ${error.response?.data?.message || error.message}`,
+        );
+      }
+      throw new BadRequestException('Erro ao consultar protestos no Cenprot');
     }
   }
 }

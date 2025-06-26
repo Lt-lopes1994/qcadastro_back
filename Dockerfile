@@ -9,6 +9,11 @@ RUN mkdir -p uploads/cnh uploads/antt uploads/user-photos uploads/empresa-logos 
 # Configurar permissões (importante para contêineres)
 RUN chmod -R 777 uploads
 
+# Criar diretório para certificados com permissões adequadas
+RUN mkdir -p /etc/qcadastro/certs && \
+    chmod 700 /etc/qcadastro/certs && \
+    chown node:node /etc/qcadastro/certs
+
 # Copiar arquivos de dependências
 COPY package*.json ./
 

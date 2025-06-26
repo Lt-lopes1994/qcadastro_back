@@ -6,6 +6,9 @@ import {
   Req,
   ForbiddenException,
   UseGuards,
+  Post,
+  Body,
+  BadRequestException,
 } from '@nestjs/common';
 import { PesquisaNetrinService } from './pesquisa-netrin.service';
 import {
@@ -15,6 +18,8 @@ import {
   ApiTags,
   ApiResponse,
   ApiParam,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/security/guards/jwt-auth.guard';
 import type { UserRequest } from 'src/user/interfaces/user-request.interface';
@@ -25,7 +30,12 @@ import {
   ScoreCreditoResponseDto,
   ReceitaFederalCNPJResponseDto,
   EstatisticasResponseDto,
+  CenprotResponseDto,
 } from './dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import * as fs from 'fs';
 
 @ApiTags('Pesquisa Netrin')
 @ApiBearerAuth()
@@ -301,6 +311,40 @@ export class PesquisaNetrinController {
     return this.pesquisaService.getMonthlyStats(month, year) as Promise<
       Record<string, any>
     >;
+  }
+
+  @ApiOperation({
+    summary: 'Consultar protestos no Cenprot',
+    description:
+      'Retorna informações de protestos registrados na Central Nacional de Protesto (Cenprot)',
+  })
+  @ApiParam({
+    name: 'documento',
+    description: 'CPF ou CNPJ para consulta de protestos',
+    example: '00000000000000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Protestos consultados com sucesso',
+    type: CenprotResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Documento inválido ou erro na configuração do certificado',
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado' })
+  @ApiResponse({
+    status: 500,
+    description: 'Erro no servidor ou na API Netrin',
+  })
+  @Get('cenprot/:documento')
+  @UseGuards(JwtAuthGuard)
+  async consultarCenprot(
+    @Param('documento') documento: string,
+    @Req() request: UserRequest,
+  ): Promise<CenprotResponseDto> {
+    return this.pesquisaService.consultarCenprot(documento, request.user.id);
   }
 }
 
