@@ -2,12 +2,19 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as FormData from 'form-data';
-import { CenprotResponse } from 'src/utils/types/pesquisa-netrin.types';
+import {
+  ReceitaFederalResponse,
+  ProcessoJudicialResponse,
+  VeiculoPlacaResponse,
+  ScoreCreditoResponse,
+  ReceitaFederalCNPJResponse,
+  CenprotResponse,
+} from '../utils/types/pesquisa-netrin.types';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { NetrinRequestLog } from '../entities/netrin-request-log.entity';
+import { NetrinRequestLog } from './entities/netrin-request-log.entity';
 import axios from 'axios';
 
 @Injectable()
@@ -18,6 +25,7 @@ export class PesquisaNetrinService {
     'https://api.netrin.com.br/v1/consulta-composta';
   private readonly cenprotCertPath: string;
   private readonly cenprotCertPassword: string;
+  private readonly netrinTokenSandbox: string;
 
   constructor(
     private configService: ConfigService,
@@ -25,12 +33,32 @@ export class PesquisaNetrinService {
     private netrinLogRepository: Repository<NetrinRequestLog>,
   ) {
     this.netrinToken = this.configService.get<string>('NETRIN_TOKEN') || '';
-    this.cenprotCertPath =
-      this.configService.get<string>('CENPROT_CERT_PATH') || '';
-    this.cenprotCertPassword =
-      this.configService.get<string>('CENPROT_CERT_PASSWORD') || '';
     this.netrinTokenSandbox =
       this.configService.get<string>('NETRIN_TOKEN_SANDBOX') || '';
+
+    // Usar caminho relativo com fallback para o valor da variável de ambiente
+    const certPathFromEnv = this.configService.get<string>('CENPROT_CERT_PATH');
+    if (certPathFromEnv && certPathFromEnv.startsWith('/etc/qcadastro')) {
+      // Se o caminho começa com /etc/qcadastro, usar o caminho relativo
+      this.cenprotCertPath = path.join(
+        process.cwd(),
+        'etc/qcadastro/certs/QUALITY_TRANSPORTES_E_ENTREGAS_RAPIDAS_LTDA06321409000196.pfx',
+      );
+      console.log(
+        'Usando caminho relativo para o certificado:',
+        this.cenprotCertPath,
+      );
+    } else {
+      // Caso contrário, usar o valor da variável de ambiente
+      this.cenprotCertPath = certPathFromEnv || '';
+      console.log(
+        'Usando caminho do certificado de variável de ambiente:',
+        this.cenprotCertPath,
+      );
+    }
+
+    this.cenprotCertPassword =
+      this.configService.get<string>('CENPROT_CERT_PASSWORD') || '';
   }
 
   // Método privado para registrar requisições assincronamente
@@ -290,7 +318,7 @@ export class PesquisaNetrinService {
   ): Promise<CenprotResponse> {
     try {
       // Validar se o token existe
-      if (!this.netrinToken) {
+      if (!this.netrinToken && !this.netrinTokenSandbox) {
         throw new BadRequestException('Token da API Netrin não configurado');
       }
 

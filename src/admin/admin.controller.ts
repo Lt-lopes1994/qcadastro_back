@@ -9,10 +9,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../security/guards/jwt-auth.guard';
 import { CertificateManagerService } from '../security/certificate-manager.service';
 import { ApiTags, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
-import { UserRequest } from '../types';
+import { UserRequest } from '../user/interfaces/user-request.interface';
 import { Req } from '@nestjs/common';
 
 @ApiTags('Admin')

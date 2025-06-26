@@ -6,7 +6,7 @@ services:
     restart: always
     environment:
       - PORT=8000
-      - CENPROT_CERT_PATH=/etc/qcadastro/certs/QUALITY_TRANSPORTES_E_ENTREGAS_RAPIDAS_LTDA06321409000196.pfx
+      - CENPROT_CERT_PATH=/app/etc/qcadastro/certs/QUALITY_TRANSPORTES_E_ENTREGAS_RAPIDAS_LTDA06321409000196.pfx
 
     expose:
       - "8000" # Apenas expõe internamente, não publica
@@ -15,8 +15,7 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./temp:/app/temp
-      - ./certs:/etc/qcadastro/certs:ro  # Montagem somente leitura do diretório de certificados
-  
+      - ./etc:/app/etc
   db:
     image: mysql:8.0
     container_name: qcadastro_db
