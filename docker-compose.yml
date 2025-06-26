@@ -38,11 +38,12 @@ services:
       retries: 5
       start_period: 30s
 
+
   nginx:
     image: nginx:alpine
     container_name: qcadastro_nginx
     ports:
-      - "80:80"
+      - "8080:80"
       - "443:443"  # Certifique-se de expor a porta 443 para HTTPS
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
@@ -52,6 +53,4 @@ services:
     depends_on:
       - app
     restart: always
-
-volumes:
-  mysql_data:
+   

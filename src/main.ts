@@ -7,7 +7,6 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
-import * as cors from 'cors';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
@@ -61,34 +60,45 @@ async function bootstrap() {
   // Proteção de cabeçalhos HTTP
   app.use(helmet());
 
-  // Configuração CORS - Corrigido para processar múltiplas origens
-  const corsOrigins = Array.from(
-    new Set(
-      (configService.get<string>('CORS_ORIGINS') || '')
+  // Se estiver usando Nginx como proxy reverso, pode desabilitar o CORS no NestJS
+  // já que o Nginx está configurando os cabeçalhos CORS
+  // Remova ou comente essa seção:
+  
+  /* 
+  app.enableCors({
+    origin: (origin, callback) => {
+      // Use Set para garantir valores únicos
+      const allowedOriginsFromEnv = (configService.get<string>('CORS_ORIGINS') || '')
         .split(',')
-        .map((origin) => origin.trim()),
-    ),
-  );
+        .map(o => o.trim())
+        .filter(Boolean);
+      
+      const allowedOriginsSet = new Set([
+        ...allowedOriginsFromEnv,
+      ]);
+      
+      const allowedOrigins = Array.from(allowedOriginsSet);
+      
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`Origem bloqueada pelo CORS: ${origin}`);
+        callback(null, false);
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204
+  });
+  */
+  
+  // Alternativamente, se preferir manter o CORS no NestJS, remova a configuração do Nginx
 
-  app.use(
-    cors({
-      origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      credentials: true,
-      allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-      preflightContinue: false,
-      optionsSuccessStatus: 204,
-    }),
-  );
-
-  // Configurar arquivos estáticos
+  // Configurar arquivos estáticos sem adicionar cabeçalhos CORS duplicados
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
     prefix: '/uploads',
-    setHeaders: (res) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET');
-      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    },
   });
 
   // Configuração do Swagger com base no ambiente
