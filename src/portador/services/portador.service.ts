@@ -151,6 +151,11 @@ export class PortadorService {
       // Buscar IDs de usuários únicos dos portadores
       const userIds = [...new Set(portadores.map((p) => p.userId))];
 
+      if (userIds.length === 0) {
+        // Retorne os portadores sem processos
+        return portadores.map(portador => ({ ...portador, processos: [] }));
+      }
+
       // Buscar todos os processos judiciais desses usuários em uma única query
       const processos = await this.processoRepository
         .createQueryBuilder('processo')
@@ -254,6 +259,11 @@ export class PortadorService {
 
       // Buscar IDs de usuários únicos dos portadores
       const userIds = [...new Set(portadores.map((p) => p.userId))];
+
+      if (userIds.length === 0) {
+        // Retorne os portadores sem processos
+        return portadores.map(portador => ({ ...portador, processos: [] }));
+      }
 
       // Buscar todos os processos judiciais desses usuários em uma única query
       const processos = await this.processoRepository

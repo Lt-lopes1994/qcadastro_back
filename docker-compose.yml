@@ -7,50 +7,27 @@ services:
     environment:
       - PORT=8000
       - CENPROT_CERT_PATH=/app/etc/qcadastro/certs/QUALITY_TRANSPORTES_E_ENTREGAS_RAPIDAS_LTDA06321409000196.pfx
-
     expose:
-      - "8000" # Apenas expõe internamente, não publica
+      - "8000"
     env_file:
       - .env
     volumes:
       - ./uploads:/app/uploads
       - ./temp:/app/temp
       - ./etc:/app/etc
-  # db:
-  #   image: mysql:8.0
-  #   container_name: qcadastro_db
-  #   restart: always
-  #   ports:
-  #     - "3307:3306"
-  #   environment:
-  #     - MYSQL_HOST=${DB_HOST}
-  #     - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-  #     - MYSQL_DATABASE=qeCadastro
-  #     - MYSQL_USER=${DB_USER}
-  #     - MYSQL_PASSWORD=${DB_PASSWORD}
-  #   volumes:
-  #     - mysql_data:/var/lib/mysql
-  #   command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-  #   healthcheck:
-  #     test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "bruno", "-pQuality#2025" ]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 5
-  #     start_period: 30s
-
 
   nginx:
     image: nginx:alpine
     container_name: qcadastro_nginx
     ports:
       - "8080:80"
-      - "443:443"  # Certifique-se de expor a porta 443 para HTTPS
+      - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/logs:/var/log/nginx
       - ./nginx/ssl:/etc/nginx/ssl/
       - ./uploads:/app/uploads
     depends_on:
       - app
     restart: always
-   
